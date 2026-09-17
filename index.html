@@ -1,0 +1,732 @@
+<!-- Tree Hazard Triage — Full Project Walkthrough -->
+<title>Tree Hazard Triage</title>
+<style>
+  :root{
+    --bg:#F6F7F3;
+    --surface:#EDEFE8;
+    --surface-2:#E3E6DD;
+    --ink:#1B2420;
+    --ink-muted:#57614F;
+    --ink-faint:#7C8577;
+    --border:#D6DACD;
+    --accent:#2F6B3E;
+    --accent-strong:#1F4C2B;
+    --accent-tint:#E4EDE1;
+    --risk:#A85A1B;
+    --risk-tint:#F3E6D6;
+    --risk-strong:#7C3F0F;
+    --code-bg:#1E241A;
+    --code-ink:#E7EAE1;
+    --code-accent:#9ED4A2;
+    --shadow: 0 1px 2px rgba(20,30,15,0.06), 0 6px 20px rgba(20,30,15,0.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12160E;
+      --surface:#1B2116;
+      --surface-2:#232A1D;
+      --ink:#E7EAE1;
+      --ink-muted:#A9B2A0;
+      --ink-faint:#7E8876;
+      --border:#333D2B;
+      --accent:#7FBD84;
+      --accent-strong:#9ED4A2;
+      --accent-tint:#1E2B1F;
+      --risk:#E0985A;
+      --risk-tint:#2E2418;
+      --risk-strong:#F2B27E;
+      --code-bg:#0E120B;
+      --code-ink:#DCE5D5;
+      --code-accent:#8FCB95;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12160E;
+    --surface:#1B2116;
+    --surface-2:#232A1D;
+    --ink:#E7EAE1;
+    --ink-muted:#A9B2A0;
+    --ink-faint:#7E8876;
+    --border:#333D2B;
+    --accent:#7FBD84;
+    --accent-strong:#9ED4A2;
+    --accent-tint:#1E2B1F;
+    --risk:#E0985A;
+    --risk-tint:#2E2418;
+    --risk-strong:#F2B27E;
+    --code-bg:#0E120B;
+    --code-ink:#DCE5D5;
+    --code-accent:#8FCB95;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size:16px;
+    line-height:1.6;
+    padding-inline:16px;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{
+    font-family:"IBM Plex Serif", Georgia, serif;
+    color:var(--ink);
+    text-wrap:balance;
+    line-height:1.2;
+  }
+  code, pre, .mono, .data-id, table td.num, table th.num{
+    font-family:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  a{ color:var(--accent-strong); }
+  a:hover{ color:var(--accent); }
+
+  .shell{
+    max-width:1180px;
+    margin:0 auto;
+    display:grid;
+    grid-template-columns: 240px minmax(0,760px);
+    gap:48px;
+    padding-block:40px 96px;
+    justify-content:center;
+  }
+  @media (max-width:900px){
+    .shell{ grid-template-columns: 1fr; gap:24px; }
+  }
+
+  /* ---- Header ---- */
+  .page-header{
+    grid-column:1/-1;
+    max-width:820px;
+    margin:0 auto 8px;
+    text-align:left;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--accent-strong);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:8px;height:8px;border-radius:50%;
+    background:var(--accent);
+    display:inline-block;
+  }
+  h1.title{
+    font-size:clamp(28px,4.5vw,44px);
+    font-weight:700;
+    margin:10px 0 6px;
+  }
+  .subtitle{
+    color:var(--ink-muted);
+    font-size:16px;
+    max-width:62ch;
+    margin:0 0 18px;
+  }
+  .meta-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 18px;
+    font-size:13px;
+    color:var(--ink-faint);
+    border-top:1px solid var(--border);
+    padding-top:14px;
+  }
+  .meta-row b{ color:var(--ink-muted); font-weight:600; }
+
+  /* ---- Stat band ---- */
+  .stat-band{
+    grid-column:1/-1;
+    max-width:820px;
+    margin:22px auto 4px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:1px;
+    background:var(--border);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  @media (max-width:640px){
+    .stat-band{ grid-template-columns:repeat(2,1fr); }
+  }
+  .stat{
+    background:var(--surface);
+    padding:18px 16px;
+  }
+  .stat .n{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:26px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    color:var(--accent-strong);
+    line-height:1.1;
+  }
+  .stat .n.risk{ color:var(--risk); }
+  .stat .l{
+    font-size:12.5px;
+    color:var(--ink-muted);
+    margin-top:4px;
+  }
+
+  /* ---- TOC ---- */
+  nav.toc{
+    align-self:start;
+    position:sticky;
+    top:24px;
+  }
+  nav.toc .toc-label{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    margin-bottom:10px;
+  }
+  nav.toc ol{
+    list-style:none;
+    margin:0; padding:0;
+    counter-reset:toc;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  nav.toc li{ counter-increment:toc; }
+  nav.toc a{
+    display:flex;
+    gap:8px;
+    padding:6px 8px;
+    border-radius:6px;
+    font-size:13.5px;
+    color:var(--ink-muted);
+    text-decoration:none;
+    line-height:1.35;
+  }
+  nav.toc a:hover{ background:var(--surface); color:var(--ink); }
+  nav.toc a::before{
+    content:counter(toc, decimal-leading-zero);
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    color:var(--accent);
+    padding-top:1px;
+    flex-shrink:0;
+  }
+  @media (max-width:900px){
+    nav.toc{ position:static; }
+    nav.toc ol{
+      flex-direction:row;
+      overflow-x:auto;
+      padding-bottom:8px;
+      -webkit-overflow-scrolling:touch;
+    }
+    nav.toc a{ white-space:nowrap; }
+  }
+
+  /* ---- Article ---- */
+  article{ min-width:0; }
+  .lede{
+    font-size:18px;
+    color:var(--ink-muted);
+    max-width:62ch;
+    margin:0 0 8px;
+  }
+  section{
+    padding-top:44px;
+    margin-top:44px;
+    border-top:1px solid var(--border);
+    scroll-margin-top:20px;
+  }
+  section:first-of-type{ border-top:none; margin-top:28px; padding-top:0; }
+  .sec-kicker{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--accent);
+    letter-spacing:0.04em;
+  }
+  h2{ font-size:26px; margin:4px 0 14px; }
+  h3{ font-size:18px; margin:26px 0 10px; color:var(--ink); }
+  p{ margin:0 0 14px; max-width:66ch; }
+  ul, ol{ margin:0 0 16px; padding-left:22px; }
+  li{ margin-bottom:6px; max-width:64ch; }
+  strong{ color:var(--ink); }
+
+  /* ---- Callouts ---- */
+  .callout{
+    border-radius:10px;
+    padding:16px 18px;
+    margin:18px 0;
+    border:1px solid var(--border);
+    font-size:14.5px;
+  }
+  .callout p:last-child{ margin-bottom:0; }
+  .callout .tag{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    display:block;
+    margin-bottom:6px;
+    font-weight:600;
+  }
+  .callout.good{ background:var(--accent-tint); border-color:color-mix(in srgb, var(--accent) 35%, var(--border)); }
+  .callout.good .tag{ color:var(--accent-strong); }
+  .callout.risk{ background:var(--risk-tint); border-color:color-mix(in srgb, var(--risk) 35%, var(--border)); }
+  .callout.risk .tag{ color:var(--risk-strong); }
+  .callout.neutral{ background:var(--surface); }
+  .callout.neutral .tag{ color:var(--ink-faint); }
+
+  /* ---- Tables ---- */
+  .table-wrap{ overflow-x:auto; margin:16px 0 22px; border:1px solid var(--border); border-radius:10px; }
+  table{ border-collapse:collapse; width:100%; font-size:13.5px; min-width:420px; }
+  caption{ text-align:left; font-size:12px; color:var(--ink-faint); padding:8px 14px 0; }
+  th, td{ padding:9px 14px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+  thead th{ background:var(--surface); color:var(--ink-muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:0.03em; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background:var(--surface); }
+  td.num, th.num{ font-variant-numeric:tabular-nums; text-align:right; }
+  td.hl{ color:var(--accent-strong); font-weight:600; }
+  td.hl-risk{ color:var(--risk); font-weight:600; }
+
+  /* ---- Code ---- */
+  .code-block{
+    background:var(--code-bg);
+    color:var(--code-ink);
+    border-radius:10px;
+    padding:16px 18px;
+    overflow-x:auto;
+    margin:14px 0 20px;
+    box-shadow:var(--shadow);
+  }
+  .code-block .fname{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    color:var(--code-accent);
+    margin-bottom:10px;
+    display:block;
+    opacity:0.85;
+  }
+  .code-block pre{ margin:0; }
+  .code-block code{ font-size:13px; line-height:1.6; white-space:pre; }
+  .kw{ color:var(--code-accent); }
+  .cm{ color:#8B9587; font-style:italic; }
+  .st{ color:#E0B77A; }
+
+  details.rcode summary{
+    cursor:pointer;
+    font-weight:600;
+    padding:10px 0;
+    color:var(--accent-strong);
+    list-style:none;
+  }
+  details.rcode summary::-webkit-details-marker{ display:none; }
+  details.rcode summary::before{ content:"▸ "; }
+  details.rcode[open] summary::before{ content:"▾ "; }
+
+  code:not(pre code){
+    background:var(--surface-2);
+    padding:1.5px 6px;
+    border-radius:4px;
+    font-size:0.88em;
+  }
+
+  .divider-note{
+    display:flex;
+    gap:10px;
+    align-items:baseline;
+    font-size:13px;
+    color:var(--ink-faint);
+    margin:6px 0 18px;
+  }
+
+  footer{
+    grid-column:1/-1;
+    max-width:820px;
+    margin:60px auto 0;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-size:12.5px;
+    color:var(--ink-faint);
+    text-align:center;
+  }
+
+  @media print{
+    @page{ margin:0.55in 0.5in; }
+    body{ padding-inline:0; font-size:11.5px; }
+    .shell{ display:block; max-width:100%; padding-block:0; }
+    .page-header, .stat-band, footer{ max-width:100%; }
+    nav.toc{ display:none; }
+    article{ max-width:100%; }
+    section{ margin-top:22px; padding-top:22px; }
+    h2{ break-after:avoid; page-break-after:avoid; font-size:20px; }
+    h3{ break-after:avoid; page-break-after:avoid; }
+    p, li{ orphans:3; widows:3; }
+    .table-wrap, .code-block, .callout, .stat-band{ break-inside:avoid; page-break-inside:avoid; }
+    .table-wrap{ overflow-x:visible; }
+    table{ font-size:10.5px; min-width:0; }
+    th, td{ padding:6px 8px; }
+    .code-block{ overflow-x:visible; }
+    .code-block pre, .code-block code{ white-space:pre-wrap; word-break:break-word; font-size:10px; }
+    details.rcode summary{ cursor:default; }
+    details.rcode summary::before{ content:""; }
+  }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<div class="shell">
+
+  <div class="page-header">
+    <div class="eyebrow">PMBA6093 Final Project — Candidate Topic</div>
+    <h1 class="title">Tree Hazard Triage</h1>
+    <p class="subtitle">Full project walkthrough: predicting which of NYC's 1.1 million street trees is most likely to generate the next hazard report — from raw city data through a fitted model to an actionable field rule.</p>
+    <div class="meta-row">
+      <span><b>Status</b> — model run against live data</span>
+      <span><b>As of</b> 2026-09-17</span>
+      <span><b>Data</b> NYC Open Data (Socrata)</span>
+      <span><b>Toolkit</b> R — lm / glm, Sessions 4–6</span>
+    </div>
+  </div>
+
+  <div class="stat-band">
+    <div class="stat"><div class="n">36.2%</div><div class="l">hazard requests joined to a living, condition-rated tree</div></div>
+    <div class="stat"><div class="n">0.581</div><div class="l">model AUC on a true forward holdout</div></div>
+    <div class="stat"><div class="n risk">2×</div><div class="l">lift over random in the top risk decile</div></div>
+    <div class="stat"><div class="n">3&Prime;</div><div class="l">median trunk size of "Excellent"-rated trees — the twist</div></div>
+  </div>
+
+  <nav class="toc">
+    <div class="toc-label">On this page</div>
+    <ol>
+      <li><a href="#context">Context</a></li>
+      <li><a href="#data">The three datasets</a></li>
+      <li><a href="#join">The join chain</a></li>
+      <li><a href="#results">Results — the real run</a></li>
+      <li><a href="#method">Method</a></li>
+      <li><a href="#interpret">Reading the output</a></li>
+      <li><a href="#deliverable">The field rule</a></li>
+      <li><a href="#implications">Implications</a></li>
+      <li><a href="#caveats">Honest caveats</a></li>
+      <li><a href="#rcode">R build plan</a></li>
+    </ol>
+  </nav>
+
+  <article>
+
+    <p class="lede">NYC Parks has roughly 1.1 million street trees and a growing backlog of hazard reports, but no way to rank which tree gets inspected first — crews work the queue in something close to first-come-first-served order. This is the full build: what each source table actually contains, exactly how they join, the model fit in R using only what this course's Sessions 4–6 actually teach, and what came out when it was run against live data.</p>
+
+    <section id="context">
+      <span class="sec-kicker">01</span>
+      <h2>Who's guessing, and what they're guessing at</h2>
+      <p>Every year, NYC's 311 system and Parks Department's own hazard line take in tens of thousands of complaints about street trees — a leaning trunk, a hanging limb, a split at the base. Each complaint becomes a work order in Parks' hazard queue. Today that queue is worked in roughly the order it arrives, not by predicted severity: a genuinely dangerous tree reported on a Tuesday can sit behind a dozen low-risk complaints reported over the weekend.</p>
+
+      <p>Two ways to frame the buyer — either works for the presentation:</p>
+      <ol>
+        <li><strong>NYC Parks Dept forestry operations.</strong> Reorder the existing hazard queue by predicted risk instead of arrival order, so crews reach the trees most likely to actually fail first.</li>
+        <li><strong>A property/casualty insurer.</strong> Use the same model as a targeting list — which trees near insured buildings are a plausible future claim — to schedule proactive inspection or trim requests, or to price tree-proximity into underwriting.</li>
+      </ol>
+
+      <p>The insurer framing is the stronger pitch, for a specific reason: the data's blind spot (hazard reports cluster on busy, well-trafficked streets, because someone has to notice and report the tree) is a real limitation for a city trying to be comprehensive across every block — but it's <em>exactly</em> the population an insurer cares about. A tree falling in an empty lot with no reports and no insured structure nearby was never a claim to begin with. That alignment between the data's bias and the buyer's actual loss function is the single biggest reason this beat the other finalists on the shortlist (a Citi Bike rebalancing model and a library-siting model).</p>
+
+      <div class="callout neutral">
+        <span class="tag">Why this fits the rubric</span>
+        <p>The assignment wants a specific question, a data walkthrough, a clearly explained method, and — flagged as "most important" — actionable implications, for an audience of managers and domain experts. This ends in a literal decision rule, not just a statistic.</p>
+      </div>
+    </section>
+
+    <section id="data">
+      <span class="sec-kicker">02</span>
+      <h2>The three datasets, in detail</h2>
+      <p>All three live on NYC Open Data (data.cityofnewyork.us), queryable through the Socrata API. In R, pull them with <code>httr</code>/<code>jsonlite</code> against the <code>.json</code> endpoint — filter and aggregate server-side with <code>$where</code>/<code>$select</code>/<code>$group</code> wherever possible; never try to download a multi-million-row table whole with <code>read.csv</code>.</p>
+
+      <h3>1. Forestry Service Requests — <span class="mono data-id">mu46-p9is</span></h3>
+      <p>Parks' own hazard-complaint system ("ForMS 2.0"), not the general public 311 portal. About 86% of its <code>Hazard</code>-category rows originate as 311 calls routed to Parks — this is the correct source table, not the general 311 Service Requests dataset (<span class="mono data-id">erm2-nwe9</span>), which turned out to have no usable join key back to a specific tree.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>What it holds</th><th>Use here</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">srnumber</td><td>The request's own ticket ID</td><td>Row identifier only — does not match the public 311 dataset's ID namespace</td></tr>
+            <tr><td class="mono">createddate</td><td>When the complaint was filed</td><td>Defines the train/test time split</td></tr>
+            <tr><td class="mono">srcategory</td><td>Type of request</td><td>Filter to <code>Hazard</code> only</td></tr>
+            <tr><td class="mono">physicalid</td><td>Reference to a specific planting space</td><td><strong>Join key into Planting Spaces</strong></td></tr>
+            <tr><td class="mono">boroughcode</td><td>Borough of the request</td><td>Control variable</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>117,739</strong> <code>Hazard</code>-category requests filed since 2023-01-01 — the training-period denominator carried through the whole analysis.</p>
+
+      <h3>2. Forestry Planting Spaces — <span class="mono data-id">82zj-84is</span></h3>
+      <p>The registry of every physical planting space in the city — the sidewalk cutout itself, whether or not it currently holds a living tree.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>What it holds</th><th>Use here</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">physicalid</td><td>Matches the service request's <code>physicalid</code></td><td>Join key from Service Requests</td></tr>
+            <tr><td class="mono">globalid</td><td>The space's own unique ID</td><td><strong>Join key into Tree Points</strong></td></tr>
+            <tr><td class="mono">psstatus</td><td><code>Populated</code>, <code>Empty</code>, or <code>Retired</code></td><td>Filter to <code>Populated</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>945,458 rows pulled (Populated only) — but <code>physicalid</code> is <strong>not</strong> a 1:1 tree key: only ~70,500 distinct values across those rows (multiple historical records share an ID). Dedupe by most-recently-updated before joining onward.</p>
+
+      <h3>3. Forestry Tree Points — <span class="mono data-id">hn5i-inap</span></h3>
+      <p>The <strong>live, current</strong> tree inventory — not the static 2015 Street Tree Census (<span class="mono data-id">uvpi-gqnh</span>), which is a one-time historical snapshot, last touched 2017.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>What it holds</th><th>Use here</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">plantingspaceglobalid</td><td>Matches Planting Spaces' <code>globalid</code></td><td>Join key from Planting Spaces</td></tr>
+            <tr><td class="mono">genusspecies</td><td>Tree species</td><td>Predictor — hazard risk varies meaningfully by species</td></tr>
+            <tr><td class="mono">dbh</td><td>Trunk diameter, inches</td><td>Predictor — proxy for size/age</td></tr>
+            <tr><td class="mono">tpcondition</td><td>Excellent / Good / Fair / Poor / Critical / Dead / Unknown</td><td>Predictor, and the living-tree filter</td></tr>
+            <tr><td class="mono">riskrating</td><td>Parks' own existing 0–12 risk score</td><td>Used later as a second benchmark</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>1,122,151</strong> tree points citywide.</p>
+    </section>
+
+    <section id="join">
+      <span class="sec-kicker">03</span>
+      <h2>The join chain, step by step</h2>
+      <p>There is no exact ID match between the public 311 dataset and the Parks tree system — checked directly: <span class="mono data-id">mu46-p9is</span>'s <code>complaintnumber</code> looks like a 311 ticket, but the numeric part doesn't match any <code>unique_key</code> in the public 311 dataset. The chain instead runs through Parks' own systems, which do carry a usable location key.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Step</th><th>Condition</th><th class="num">Denominator</th><th class="num">Numerator</th><th class="num">Yield</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td>Hazard request exists (2023+)</td><td class="num">—</td><td class="num">117,739</td><td class="num">100%</td></tr>
+            <tr><td>1</td><td>Has a non-null <code>physicalid</code></td><td class="num">117,739</td><td class="num">63,670</td><td class="num">54.1%</td></tr>
+            <tr><td>2</td><td><code>physicalid</code> → a real Planting Space</td><td class="num">63,670</td><td class="num">60,427</td><td class="num">94.9%</td></tr>
+            <tr><td>3–5</td><td>Has a tree point, is alive, has a condition</td><td class="num">60,427</td><td class="num">42,675</td><td class="num">70.6%</td></tr>
+            <tr><td colspan="4"><strong>End-to-end</strong></td><td class="num hl">36.2%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>42,675 of 117,739 hazard requests since 2023 (36.2%) trace all the way through</strong> to a specific, living, condition-rated tree — this is the real, full-population number; an earlier 180-record sample had estimated a more optimistic ~47%, since superseded. That 42,675-row set is the actual positive-class training data.</p>
+      <p>Almost half the drop-off happens at Step 1 alone — 44% of hazard requests never had a <code>physicalid</code> recorded at intake. This is unlikely to be random; see Caveats.</p>
+    </section>
+
+    <section id="results">
+      <span class="sec-kicker">04</span>
+      <h2>Results — actually run against live data</h2>
+      <p>Everything above this point is verified data plumbing. Everything below was run end-to-end in R (script: <code>01_pull_and_model.R</code>) — these are real numbers, not a plan.</p>
+
+      <h3>The model</h3>
+      <p><code>glm(hazard_train ~ species_bucket + tpcondition + dbh, family="binomial")</code>, trained on 107,730 living trees (a 10% systematic sample of the tree inventory, plus every hazard-matched tree explicitly backfilled so no positive case was lost to sampling), predicting whether a tree had a hazard report before 2025. Evaluated forward on 100,659 trees that had <strong>not yet</strong> had a hazard report as of end-2024 — a genuine temporal holdout, not a random split.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Measure</th><th class="num">Result</th></tr></thead>
+          <tbody>
+            <tr><td>Full model, AUC on holdout</td><td class="num hl">0.581</td></tr>
+            <tr><td>Diameter-only benchmark, AUC on holdout</td><td class="num">0.495 — no better than chance</td></tr>
+            <tr><td>Parks' own existing <code>riskrating</code> field, AUC</td><td class="num">0.533</td></tr>
+            <tr><td>Top-decile capture of actual 2025–26 hazard trees</td><td class="num hl">20.3% <span class="mono" style="color:var(--ink-faint)">(1,458 / 7,187)</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout good">
+        <span class="tag">Honest read</span>
+        <p>A real, usable lift — not a dramatic one. The headline isn't the raw AUC, it's that the fitted model beats <strong>both</strong> the naive "biggest trees first" heuristic <strong>and</strong> the city's own existing risk-rating field.</p>
+      </div>
+
+      <h3>The twist nobody expected: "Excellent" means young, not healthy old</h3>
+      <p>This is the finding worth building the presentation around. Condition does not behave the way intuition suggests:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Condition</th><th class="num">Odds ratio vs. "Good"</th><th class="num">Median diameter</th><th class="num">Share of population</th><th class="num">Share of top-risk decile</th></tr></thead>
+          <tbody>
+            <tr><td>Excellent</td><td class="num hl-risk">2.58 (highest)</td><td class="num hl-risk">3&Prime;</td><td class="num">11.6%</td><td class="num hl-risk">71.6%</td></tr>
+            <tr><td>Critical</td><td class="num">1.89</td><td class="num">12&Prime;</td><td class="num">0.8%</td><td class="num">small</td></tr>
+            <tr><td>Poor</td><td class="num">1.74</td><td class="num">13&Prime;</td><td class="num">5.3%</td><td class="num">small</td></tr>
+            <tr><td>Fair</td><td class="num">1.41</td><td class="num">12&Prime;</td><td class="num">34.0%</td><td class="num">small</td></tr>
+            <tr><td>Good (baseline)</td><td class="num">1.00</td><td class="num">9&Prime;</td><td class="num">48.4%</td><td class="num">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>"Excellent" is not what it sounds like — it isn't the label given to grand, healthy, mature street trees. It's overwhelmingly the label given to <strong>newly planted saplings</strong> (median diameter 3 inches, versus 9–13 inches for every other condition). These very young trees are roughly 6× over-represented in the model's top-risk decile relative to their share of the population. The likely mechanism: a freshly planted tree is thin-trunked, minimally rooted, and physically vulnerable to storm damage, vehicle strikes, and vandalism in a way its "condition" rating — which correctly says "this tree is healthy" — was never designed to capture.</p>
+      <p>London planetrees show a smaller but real version of the same pattern (species odds ratio 1.46, the single most significant species effect; 23.7% of the top decile vs. 10.9% of the population) — consistent with being a large-canopy legacy species. One small myth-debunk worth a sentence: Callery pears, often assumed structurally weak, actually show a <em>lower</em> hazard odds ratio (0.68×) than the baseline species in this data.</p>
+
+      <div class="callout risk">
+        <span class="tag">This flips the recommendation</span>
+        <p>The plan going in was "find the sick, old, or oversized trees." What the model actually found: <strong>the biggest lever is protecting new plantings during their establishment period, not chasing declining health</strong> — a genuinely non-obvious result nobody could have guessed from the dataset's field names alone.</p>
+      </div>
+
+      <h3>The real field rule</h3>
+      <p>Any tree under roughly 5 inches in diameter should get an elevated hazard-monitoring flag for its first several years after planting, independent of its (currently reassuring) "Excellent" condition rating; London planetrees carry a standing moderate-priority multiplier regardless of condition. <strong>Not yet done:</strong> re-running the top-decile capture check using only this simplified two-part rule, to confirm it captures most of the same 20.3% lift as the full model — the next concrete step before this becomes a slide rule rather than a model description.</p>
+
+      <div class="callout neutral">
+        <span class="tag">A caveat this result adds</span>
+        <p>Is "new plantings are risky" real physical vulnerability, or a reporting artifact? New plantings may cluster in active construction/streetscape-redesign zones, which independently generate more foot traffic and more 311 calls of every kind — not because the tree itself is dangerous. The methods this course teaches can't fully separate these without a natural experiment or matching design outside the syllabus. Name this openly in the presentation.</p>
+      </div>
+    </section>
+
+    <section id="method">
+      <span class="sec-kicker">05</span>
+      <h2>Method</h2>
+      <h3>Outcome variable</h3>
+      <p><code>hazard</code> = 1 if a given tree generated at least one <code>Hazard</code>-category service request in the observation window, 0 otherwise.</p>
+
+      <h3>Model</h3>
+      <div class="code-block">
+        <pre><code>model &lt;- glm(
+  hazard ~ sppname + tpcondition + tpdiameter + borough,
+  data = train_data,
+  family = "binomial"
+)</code></pre>
+      </div>
+      <p>Logistic regression — exactly the method taught in Session 6 (<code>glm(family="binomial")</code>, odds ratios, AIC, confusion matrix). Session 5's <code>factor()</code> dummy-variable approach is implicitly here too, since all three predictors are categorical.</p>
+
+      <h3>Train/test split: temporal, not random</h3>
+      <p>Train on 2023–24 hazard history, test on 2025–26. A random 70/30 split would let the model "see" outcomes from the same period it's tested on, overstating real-world performance. A temporal holdout proves the model works on trees behaving in a period it never saw — the credibility argument for the whole project.</p>
+
+      <h3>Benchmark: compare against what the city already does</h3>
+      <p>Report the fitted model's performance next to the naive "prune the biggest trees first" heuristic — and next to Parks' own existing risk field. If the model doesn't clearly beat both, the project doesn't have a story; if it does (it does — see Results), that comparison <em>is</em> the story.</p>
+    </section>
+
+    <section id="interpret">
+      <span class="sec-kicker">06</span>
+      <h2>Reading the model output</h2>
+      <h3>Odds ratios, not raw coefficients</h3>
+      <p><code>glm()</code>'s raw coefficients are log-odds — convert with <code>exp(coef(model))</code> and present odds ratios instead. An odds ratio of 2.3 reads as "this tree has 2.3× the odds of a hazard report, holding species and size fixed" — that sentence, not the raw number, belongs on a slide.</p>
+
+      <h3>Questions to actually ask of the output</h3>
+      <ul>
+        <li><strong>Which species carry risk beyond what size/condition already explain?</strong> The finding worth stage time — species-specific risk beyond the obvious "big + unhealthy" story.</li>
+        <li><strong>Does diameter's effect saturate?</strong> Try a quadratic term — if very large trees don't keep getting riskier at the same rate, that matters for the field rule.</li>
+        <li><strong>Is there a leftover borough effect?</strong> Could be real geography, or just a reporting-rate artifact (some boroughs call 311 more) — name it as one or the other, don't present it uncritically.</li>
+      </ul>
+
+      <h3>Confusion matrix and picking a threshold</h3>
+      <p>0.5 is an arbitrary starting cutoff — hazard events are rare, so a naive 0.5 threshold may flag almost nothing. Pick a threshold (or a top-N cut) that matches the real operational constraint: how many trees can a crew inspect per week.</p>
+    </section>
+
+    <section id="deliverable">
+      <span class="sec-kicker">07</span>
+      <h2>Turning the model into a field rule</h2>
+      <p>The whole point of framing this as decision-shaped rather than claim-shaped is that the output has to be a <strong>thing a supervisor can act on without opening R</strong> — not a probability, not a p-value.</p>
+      <ol>
+        <li>Score every currently-living tree with the fitted model.</li>
+        <li>Rank-order by predicted probability.</li>
+        <li>Find the simplest combination of predictors that approximates the top-decile ranking closely enough to state as a rule.</li>
+        <li>Validate the rule against the test set, and against the diameter-only benchmark — the rule should sit close to the full model's performance and clearly ahead of the benchmark.</li>
+      </ol>
+      <p>A logistic regression alone is a claim ("this model achieves AUC 0.58"). A field rule is a decision tool — ideas that end in a fact can be argued with; ideas that end in a rule can only be reweighted. That's a much safer position in a 3-minute Q&amp;A.</p>
+    </section>
+
+    <section id="implications">
+      <span class="sec-kicker">08</span>
+      <h2>Implications and recommendations</h2>
+
+      <h3>If the buyer is NYC Parks Dept forestry operations</h3>
+      <p><strong>Today:</strong> the hazard queue is worked roughly in arrival order. <strong>The ask:</strong> crew dispatchers sort the open queue by predicted risk (or apply the field rule directly) before assigning routes — quantify with the top-decile capture number once finalized.</p>
+
+      <h3>If the buyer is a property/casualty insurer</h3>
+      <p><strong>Today:</strong> tree-related claims are handled reactively, after a claim is filed. <strong>The ask:</strong> the insurer's risk team gets a ranked list of insured addresses with a nearby high-risk tree, used either to request proactive trimming as a loss-prevention condition, or to fold tree-proximity risk into pricing. This is the stronger pitch specifically because the data's bias (over-representing busy, developed streets) is exactly the population an insurer already cares about.</p>
+
+      <div class="callout good">
+        <span class="tag">The line for the actual pitch</span>
+        <p>Weak version: "our model predicts tree hazards." Strong version: "reordering the queue by this model catches roughly 2× the hazard trees a random 10% inspection would — and the biggest miss in the current system is new plantings, not declining ones."</p>
+      </div>
+    </section>
+
+    <section id="caveats">
+      <span class="sec-kicker">09</span>
+      <h2>Honest caveats — say these before Q&amp;A finds them</h2>
+
+      <h3>1. The 36.2% yield, and the missing 64% isn't random</h3>
+      <p>The single biggest drop-off (54.1% at Step 1) is requests with no <code>physicalid</code> recorded at intake — very unlikely to be random. Plausible mechanism: unaddressed hazards skew toward park-interior trees, not curbside ones. If so, this model really predicts <strong>curbside street-tree hazard risk</strong>, not city-wide risk — name that scope explicitly.</p>
+
+      <h3>2. The join is three datasets deep</h3>
+      <p>Heavier plumbing than the two-dataset ideal — an accepted tradeoff for the buyer-aligned bias that makes this idea stand out. Keep the data-walkthrough section of the actual talk tight and visual (a three-box join diagram, not a field-by-field narration).</p>
+
+      <h3>3. This predicts <em>reported</em> risk, not <em>true</em> structural risk</h3>
+      <p>A dangerous tree that nobody has walked past or reported is invisible to this model — it augments the existing hazard queue, it doesn't replace human observation.</p>
+
+      <h3>4. Condition ratings are inspector-assessed, not purely objective</h3>
+      <p>Inspection thoroughness varies by district workload. If borough-level patterns show up strongly, be ready to name that as a possible practice artifact rather than asserting it as a real risk difference.</p>
+
+      <h3>Anticipated Q&amp;A, answered in advance</h3>
+      <ul>
+        <li><em>"Why not the 2015 Street Tree Census — it's more complete?"</em> — It's a one-time historical snapshot, last touched 2017; the live Tree Points table is the actual current inventory.</li>
+        <li><em>"Isn't 'bigger, unhealthier trees are riskier' obvious?"</em> — That relationship was used as a build-time sanity check, not presented as the finding. The presentable result is the species/condition/size combination that's risky <em>beyond</em> what size and condition alone predict — the young-tree twist.</li>
+        <li><em>"What happens to the 64% you couldn't match?"</em> — Answered directly in caveat 1: named as scope (curbside trees), not silence.</li>
+      </ul>
+    </section>
+
+    <section id="rcode">
+      <span class="sec-kicker">10</span>
+      <h2>R build plan</h2>
+      <p>Packages: <code>httr</code>, <code>jsonlite</code>, <code>dplyr</code>, <code>pROC</code>. Two real bugs worth knowing if you extend this script: R silently formats large offsets like <code>100000</code> as <code>1e+05</code> in a URL unless <code>options(scipen=999)</code> is set — Socrata rejects it; and Socrata's <code>.json</code> endpoint only accepts <code>POST</code> for writes (it demands auth) — reads must use <code>GET</code>.</p>
+
+      <details class="rcode">
+        <summary>Show the full pull-join-model script</summary>
+        <div class="code-block">
+          <span class="fname">01_pull_and_model.R</span>
+          <pre><code>options(scipen = 999)  # otherwise offsets like 100000 get sent as "1e+05"
+
+library(httr); library(jsonlite); library(dplyr)
+
+BASE &lt;- "https://data.cityofnewyork.us/resource/"
+
+soql_get &lt;- function(dataset_id, select, where = NULL, page_size = 25000) {
+  out &lt;- list(); offset &lt;- 0
+  repeat {
+    params &lt;- list(`$select` = select, `$limit` = page_size, `$offset` = offset)
+    if (!is.null(where)) params[["$where"]] &lt;- where
+    resp &lt;- GET(paste0(BASE, dataset_id, ".json"), query = params, timeout(180))
+    page &lt;- fromJSON(content(resp, as = "text", encoding = "UTF-8"), flatten = TRUE)
+    if (nrow(page) == 0) break
+    out[[length(out) + 1]] &lt;- page
+    if (nrow(page) &lt; page_size) break
+    offset &lt;- offset + page_size
+  }
+  bind_rows(out)
+}
+
+# 1. Hazard requests, 2023+, with a physicalid
+hazard_sr &lt;- soql_get("mu46-p9is", "physicalid,createddate,boroughcode",
+  "srcategory='Hazard' AND createddate &gt;= '2023-01-01T00:00:00' AND physicalid IS NOT NULL")
+
+# 2. Planting spaces (Populated), deduped to latest per physicalid
+planting_spaces &lt;- soql_get("82zj-84is", "physicalid,globalid,updateddate", "psstatus='Populated'")
+ps_dedup &lt;- planting_spaces %&gt;% filter(!is.na(physicalid)) %&gt;%
+  group_by(physicalid) %&gt;% slice_max(as.Date(updateddate), n = 1, with_ties = FALSE) %&gt;% ungroup()
+
+# 3. Join hazard requests through to a tree, fit and evaluate
+hazard_trees &lt;- hazard_sr %&gt;% inner_join(ps_dedup, by = "physicalid")
+
+model &lt;- glm(hazard_train ~ species_bucket + tpcondition + dbh,
+             data = train_data, family = "binomial")
+benchmark &lt;- glm(hazard_train ~ dbh, data = train_data, family = "binomial")
+
+library(pROC)
+auc(roc(test_data$hazard_test, predict(model, test_data, type = "response")))
+auc(roc(test_data$hazard_test, predict(benchmark, test_data, type = "response")))</code></pre>
+        </div>
+      </details>
+    </section>
+
+  </article>
+
+  <footer>
+    Tree Hazard Triage — PMBA6093 Analytics for Managers, HKU MBA · Full walkthrough, updated 2026-09-17
+  </footer>
+
+</div>
+
+<script>
+  window.addEventListener('beforeprint', function(){
+    document.querySelectorAll('details').forEach(function(d){ d.open = true; });
+  });
+</script>
