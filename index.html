@@ -430,7 +430,7 @@
   <div class="stat-band">
     <div class="stat"><div class="n">36.2%</div><div class="l">hazard requests joined to a living, condition-rated tree</div></div>
     <div class="stat"><div class="n">0.581</div><div class="l">model AUC on a true forward holdout</div></div>
-    <div class="stat"><div class="n risk">2×</div><div class="l">lift over random in the top risk decile</div></div>
+    <div class="stat"><div class="n risk">1.56×</div><div class="l">lift over random in the top-risk group (13%)</div></div>
     <div class="stat"><div class="n">3&Prime;</div><div class="l">median trunk size of "Excellent"-rated trees — the twist</div></div>
   </div>
 
@@ -458,10 +458,10 @@
       <span class="tldr-label">TL;DR — for anyone short on time</span>
       <ul>
         <li><strong>The ask:</strong> NYC Parks has ~1.1M street trees and no way to rank hazard reports by actual risk — we built a model that does, using only city data and methods this course teaches.</li>
-        <li><strong>The twist:</strong> "Excellent" condition doesn't mean a healthy old tree — it means a newly planted sapling (median 3&Prime; trunk vs. 9–13&Prime; for every other rating), and these young trees are 6× over-represented in the model's highest-risk group.</li>
-        <li><strong>The proof:</strong> the model (AUC 0.581) beats both the naive "biggest trees first" heuristic (0.495 — no better than chance) and the city's own existing risk field (0.533), catching 2× as many real hazard trees as a random 10% inspection would.</li>
+        <li><strong>The twist:</strong> "Excellent" condition doesn't mean a healthy old tree — it means a newly planted sapling (median 3&Prime; trunk vs. 9–13&Prime; for every other rating), and these young trees are 6× over-represented in the model's highest-risk group. <strong>Why is genuinely unresolved</strong> — at least 18.8% are confirmed tree replacements (planted after their own hazard report), not proof of sapling fragility.</li>
+        <li><strong>The proof:</strong> the model (AUC 0.581) beats both the naive "biggest trees first" heuristic (0.495 — no better than chance) and the city's own existing risk field, catching 1.56× as many real hazard trees as a random sample of the same size would — real, modest, not the 2× first claimed.</li>
         <li><strong>The catch, disclosed up front:</strong> only 36.2% of hazard complaints trace to a specific living tree in the data — a real limitation, stated plainly rather than hidden.</li>
-        <li><strong>The recommendation:</strong> flag new plantings for elevated monitoring during their first few years, instead of waiting for them to look unhealthy.</li>
+        <li><strong>The recommendation:</strong> flag any planting space with a hazard history for elevated monitoring after every (re)planting — true whether the risk is sapling fragility or something about the location itself.</li>
       </ul>
       <span class="jump">Full detail — data, join chain, model, caveats — below ↓</span>
     </div>
@@ -496,11 +496,11 @@
         <table>
           <thead><tr><th>Field</th><th>What it holds</th><th>Use here</th></tr></thead>
           <tbody>
-            <tr><td class="mono">srnumber</td><td>The request's own ticket ID</td><td>Row identifier only — does not match the public 311 dataset's ID namespace</td></tr>
+            <tr><td class="mono">complaintnumber</td><td>The request's own ticket ID (e.g. <code>311-28578564</code>)</td><td>Row identifier only — its numeric part does not fall in the public 311 dataset's <code>unique_key</code> range, confirmed by direct lookup</td></tr>
             <tr><td class="mono">createddate</td><td>When the complaint was filed</td><td>Defines the train/test time split</td></tr>
             <tr><td class="mono">srcategory</td><td>Type of request</td><td>Filter to <code>Hazard</code> only</td></tr>
             <tr><td class="mono">physicalid</td><td>Reference to a specific planting space</td><td><strong>Join key into Planting Spaces</strong></td></tr>
-            <tr><td class="mono">boroughcode</td><td>Borough of the request</td><td>Control variable</td></tr>
+            <tr><td class="mono">boroughcode</td><td>Borough of the request</td><td>Pulled as a possible control, dropped before the final fit (see Method) — not used in the reported model</td></tr>
           </tbody>
         </table>
       </div>
@@ -518,7 +518,7 @@
           </tbody>
         </table>
       </div>
-      <p>945,458 rows pulled (Populated only) — but <code>physicalid</code> is <strong>not</strong> a 1:1 tree key: only ~70,500 distinct values across those rows (multiple historical records share an ID). Dedupe by most-recently-updated before joining onward.</p>
+      <p>945,458 rows pulled (Populated only) — but <code>physicalid</code> is <strong>not</strong> a 1:1 tree key: a naive distinct-string count gives ~70,500 values, but the field is stored inconsistently (zero-padded, <code>"0070763"</code>, and unpadded, <code>"70763"</code>, forms both exist for the same id) — coercing to integer and deduping by most-recently-updated collapses this to <strong>62,338</strong> real distinct spaces, which is the number the analysis actually used.</p>
 
       <h3>3. Forestry Tree Points — <span class="mono data-id">hn5i-inap</span></h3>
       <p>The <strong>live, current</strong> tree inventory — not the static 2015 Street Tree Census (<span class="mono data-id">uvpi-gqnh</span>), which is a one-time historical snapshot, last touched 2017.</p>
@@ -554,8 +554,8 @@
           </tbody>
         </table>
       </div>
-      <p><strong>42,675 of 117,739 hazard requests since 2023 (36.2%) trace all the way through</strong> to a specific, living, condition-rated tree — this is the real, full-population number; an earlier 180-record sample had estimated a more optimistic ~47%, since superseded. That 42,675-row set is the actual positive-class training data.</p>
-      <p>Almost half the drop-off happens at Step 1 alone — 44% of hazard requests never had a <code>physicalid</code> recorded at intake. This is unlikely to be random; see Caveats.</p>
+      <p><strong>42,675 of 117,739 hazard requests since 2023 (36.2%) trace all the way through</strong> to a specific, living, condition-rated tree — this is the real, full-population number; an earlier 180-record sample had estimated a more optimistic ~47%, since superseded. That 42,675 is a count of <em>requests</em>, not distinct trees — since one tree can generate several requests, the actual number of distinct trees this yields is smaller: 14,258 trees with at least one matched hazard report across the full window, of which 7,067 had one specifically before 2025 (the positive class the model was trained on).</p>
+      <p>Step 1 alone drops the largest share — 45.9% of hazard requests (54,069 of 117,739) never had a <code>physicalid</code> recorded at intake, i.e. the 54.1% figure above is the share that <em>survived</em>, not the drop-off itself. This is unlikely to be random; see Caveats.</p>
     </section>
 
     <section id="results">
@@ -564,29 +564,33 @@
       <p>Everything above this point is verified data plumbing. Everything below was run end-to-end in R (script: <code>01_pull_and_model.R</code>) — these are real numbers, not a plan.</p>
 
       <h3>The model</h3>
-      <p><code>glm(hazard_train ~ species_bucket + tpcondition + dbh, family="binomial")</code>, trained on 107,730 living trees (a 10% systematic sample of the tree inventory, plus every hazard-matched tree explicitly backfilled so no positive case was lost to sampling), predicting whether a tree had a hazard report before 2025. Evaluated forward on 100,659 trees that had <strong>not yet</strong> had a hazard report as of end-2024 — a genuine temporal holdout, not a random split.</p>
+      <p><code>glm(hazard_train ~ species_bucket + tpcondition + dbh, family="binomial")</code>, trained on 107,730 living trees (a 10% systematic sample of the tree inventory, plus every hazard-matched tree explicitly backfilled so no positive case was lost to sampling), predicting whether a tree had a hazard report before 2025. Evaluated forward on 100,659 trees that had <strong>not yet</strong> had a hazard report as of end-2024 — split on time, though not a fully clean holdout: the training table includes the same trees used for evaluation, labelled as negatives, so treat this as a temporally-ordered check rather than a strictly unseen-data test.</p>
 
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Measure</th><th class="num">Result</th></tr></thead>
+          <thead><tr><th>Measure</th><th class="num">Population</th><th class="num">Result</th></tr></thead>
           <tbody>
-            <tr><td>Full model, AUC on holdout</td><td class="num hl">0.581</td></tr>
-            <tr><td>Diameter-only benchmark, AUC on holdout</td><td class="num">0.495 — no better than chance</td></tr>
-            <tr><td>Parks' own existing <code>riskrating</code> field, AUC</td><td class="num">0.533</td></tr>
-            <tr><td>Top-decile capture of actual 2025–26 hazard trees</td><td class="num hl">20.3% <span class="mono" style="color:var(--ink-faint)">(1,458 / 7,187)</span></td></tr>
+            <tr><td>Full model, AUC on holdout</td><td class="num">100,659</td><td class="num hl">0.581</td></tr>
+            <tr><td>Diameter-only benchmark, AUC on holdout</td><td class="num">100,659</td><td class="num">0.495 — no better than chance</td></tr>
+            <tr><td>Parks' own existing <code>riskrating</code> field, AUC</td><td class="num">61,317 <span class="mono" style="color:var(--ink-faint)">(has a rating)</span></td><td class="num">0.533</td></tr>
+            <tr><td>Top-risk group capture of actual 2025–26 hazard trees</td><td class="num">13,128 <span class="mono" style="color:var(--ink-faint)">(13.0%, not a clean 10%)</span></td><td class="num hl">20.3% <span class="mono" style="color:var(--ink-faint)">(1,458 / 7,187)</span></td></tr>
           </tbody>
         </table>
       </div>
+      <div class="callout risk">
+        <span class="tag">Correction</span>
+        <p>Two things were stated too cleanly in an earlier pass. First: the <code>riskrating</code> row runs on a <strong>different, smaller population</strong> — only 61% of trees have a rating at all, so 0.533 isn't directly comparable to the other two rows. Recomputed on the shared 61,317-tree subset: full model 0.548, <code>riskrating</code> 0.533, diameter-only 0.528 — the model's edge over the city's own system shrinks to 0.015 on a fair comparison. Real, but modest. Second: ties in the model's predicted scores push the "top decile" cutoff to <strong>13.0% of trees, not 10%</strong>, so the fair baseline is a random 13% sample (expected to catch ~937 hazard trees), not a random 10% sample. The actual lift is <strong>1.56×</strong>, not 2×.</p>
+      </div>
       <div class="callout good">
         <span class="tag">Honest read</span>
-        <p>A real, usable lift — not a dramatic one. The headline isn't the raw AUC, it's that the fitted model beats <strong>both</strong> the naive "biggest trees first" heuristic <strong>and</strong> the city's own existing risk-rating field.</p>
+        <p>A real, usable lift — not a dramatic one, and smaller than first stated. The headline isn't the raw AUC, it's that the fitted model beats both the naive "biggest trees first" heuristic and the city's own existing risk-rating field, even on a fair like-for-like comparison — just by a narrower margin than a first pass suggested.</p>
       </div>
 
-      <h3>The twist nobody expected: "Excellent" means young, not healthy old</h3>
-      <p>This is the finding worth building the presentation around. Condition does not behave the way intuition suggests:</p>
+      <h3>The twist: hazard-flagged locations skew toward young trees — the cause is unresolved</h3>
+      <p>Condition does not behave the way intuition suggests, and the pattern itself is real and reproducible:</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Condition</th><th class="num">Odds ratio vs. "Good"</th><th class="num">Median diameter</th><th class="num">Share of population</th><th class="num">Share of top-risk decile</th></tr></thead>
+          <thead><tr><th>Condition</th><th class="num">Odds ratio vs. "Good"</th><th class="num">Median diameter</th><th class="num">Share of population</th><th class="num">Share of top-risk group</th></tr></thead>
           <tbody>
             <tr><td>Excellent</td><td class="num hl-risk">2.58 (highest)</td><td class="num hl-risk">3&Prime;</td><td class="num">11.6%</td><td class="num hl-risk">71.6%</td></tr>
             <tr><td>Critical</td><td class="num">1.89</td><td class="num">12&Prime;</td><td class="num">0.8%</td><td class="num">small</td></tr>
@@ -596,20 +600,22 @@
           </tbody>
         </table>
       </div>
-      <p>"Excellent" is not what it sounds like — it isn't the label given to grand, healthy, mature street trees. It's overwhelmingly the label given to <strong>newly planted saplings</strong> (median diameter 3 inches, versus 9–13 inches for every other condition). These very young trees are roughly 6× over-represented in the model's top-risk decile relative to their share of the population. The likely mechanism: a freshly planted tree is thin-trunked, minimally rooted, and physically vulnerable to storm damage, vehicle strikes, and vandalism in a way its "condition" rating — which correctly says "this tree is healthy" — was never designed to capture.</p>
-      <p>London planetrees show a smaller but real version of the same pattern (species odds ratio 1.46, the single most significant species effect; 23.7% of the top decile vs. 10.9% of the population) — consistent with being a large-canopy legacy species. One small myth-debunk worth a sentence: Callery pears, often assumed structurally weak, actually show a <em>lower</em> hazard odds ratio (0.68×) than the baseline species in this data.</p>
+      <p>"Excellent" is not what it sounds like — it isn't the label given to grand, healthy, mature street trees. It's overwhelmingly the label given to <strong>newly planted saplings</strong> (median diameter 3 inches, versus 9–13 inches for every other condition). These very young trees are roughly 6× over-represented in the model's top-risk group relative to their share of the population. London planetrees show a smaller but real version of the same pattern (species odds ratio 1.46, the single most significant species effect; 23.7% of the top-risk group vs. 10.9% of the population). One small myth-debunk worth a sentence: Callery pears, often assumed structurally weak, actually show a <em>lower</em> hazard odds ratio (0.68×) than the baseline species in this data.</p>
 
       <div class="callout risk">
-        <span class="tag">This flips the recommendation</span>
-        <p>The plan going in was "find the sick, old, or oversized trees." What the model actually found: <strong>the biggest lever is protecting new plantings during their establishment period, not chasing declining health</strong> — a genuinely non-obvious result nobody could have guessed from the dataset's field names alone.</p>
+        <span class="tag">Correction — the cause is genuinely unresolved</span>
+        <p>An earlier pass stated confidently that this is sapling physical vulnerability — thin trunks, weak roots, exposure to storm and vehicle damage. That's a real possibility, but it isn't the only one, and it hasn't been established. The join links to a <em>planting space</em> (the sidewalk cutout), and condition/size are read from whoever occupies that space <strong>today</strong> — not necessarily the tree that was there when the hazard was reported. Checked directly against live planting-date records: <strong>at least 18.8% of "Excellent" hazard-matched trees were planted <em>after</em> their own hazard report</strong> — sometimes 2–3 years after. That's mechanical proof that a meaningful share of "young + hazardous" cases are really "this tree was removed and replaced, and the replacement inherited the address's hazard history." The rest can't be cleanly separated from that same effect using this data or this course's methods — the honest position is that we don't know how much of the pattern is real sapling fragility versus tree turnover, and we're not equipped to find out with what's available here.</p>
       </div>
 
-      <h3>The real field rule</h3>
-      <p>Any tree under roughly 5 inches in diameter should get an elevated hazard-monitoring flag for its first several years after planting, independent of its (currently reassuring) "Excellent" condition rating; London planetrees carry a standing moderate-priority multiplier regardless of condition. <strong>Not yet done:</strong> re-running the top-decile capture check using only this simplified two-part rule, to confirm it captures most of the same 20.3% lift as the full model — the next concrete step before this becomes a slide rule rather than a model description.</p>
+      <h3>The recommendation that survives either way</h3>
+      <p>Rather than betting the recommendation on a cause that isn't settled, aim it at the one thing true regardless of mechanism: <strong>a planting space with a hazard history stays elevated risk</strong> — whether because a replacement sapling is itself vulnerable, or because something about that location (traffic, exposure, soil) keeps producing problems no matter what's planted there. Any space that has ever generated a hazard report should get an elevated-monitoring flag after every (re)planting, not just checked once and forgotten. That's a genuinely non-obvious recommendation nobody would guess from the dataset's field names alone, and it doesn't require resolving the sapling-vs-replacement question to be worth acting on.</p>
+
+      <h3>The field rule</h3>
+      <p>As a starting heuristic: any tree under roughly 5 inches in diameter, or sitting in a planting space with a prior hazard report, gets an elevated hazard-monitoring flag; London planetrees carry a standing moderate-priority multiplier regardless of condition. <strong>Not yet done:</strong> re-running the top-risk-group capture check using only this simplified rule, to confirm it captures most of the same lift as the full model — the next concrete step before this becomes a slide rule rather than a model description.</p>
 
       <div class="callout neutral">
-        <span class="tag">A caveat this result adds</span>
-        <p>Is "new plantings are risky" real physical vulnerability, or a reporting artifact? New plantings may cluster in active construction/streetscape-redesign zones, which independently generate more foot traffic and more 311 calls of every kind — not because the tree itself is dangerous. The methods this course teaches can't fully separate these without a natural experiment or matching design outside the syllabus. Name this openly in the presentation.</p>
+        <span class="tag">Still open</span>
+        <p>Separately from the replacement question: new plantings may also cluster in active construction/streetscape-redesign zones, which independently generate more foot traffic and more 311 calls of every kind — a second, compounding reason condition alone can't be read as a clean health signal. Name both open questions in the presentation rather than picking one.</p>
       </div>
     </section>
 
@@ -622,11 +628,12 @@
       <h3>Model</h3>
       <div class="code-block">
         <pre><code>model &lt;- glm(
-  hazard ~ sppname + tpcondition + tpdiameter + borough,
+  hazard_train ~ species_bucket + tpcondition + dbh,
   data = train_data,
   family = "binomial"
 )</code></pre>
       </div>
+      <p>This is the exact formula and exact variable names actually fit — matching the Results section above and the real script in the R Build Plan below. (An earlier version of this page showed a different illustrative formula here, including <code>borough</code>, before the pipeline was finalized — <code>boroughcode</code> was pulled but dropped before the final fit and never appears in any reported number.)</p>
       <p>Logistic regression — exactly the method taught in Session 6 (<code>glm(family="binomial")</code>, odds ratios, AIC, confusion matrix). Session 5's <code>factor()</code> dummy-variable approach is implicitly here too, since all three predictors are categorical.</p>
 
       <h3>Train/test split: temporal, not random</h3>
@@ -644,9 +651,8 @@
 
       <h3>Questions to actually ask of the output</h3>
       <ul>
-        <li><strong>Which species carry risk beyond what size/condition already explain?</strong> The finding worth stage time — species-specific risk beyond the obvious "big + unhealthy" story.</li>
-        <li><strong>Does diameter's effect saturate?</strong> Try a quadratic term — if very large trees don't keep getting riskier at the same rate, that matters for the field rule.</li>
-        <li><strong>Is there a leftover borough effect?</strong> Could be real geography, or just a reporting-rate artifact (some boroughs call 311 more) — name it as one or the other, don't present it uncritically.</li>
+        <li><strong>Which species carry risk beyond what size/condition already explain?</strong> Less than hoped, checked directly: species and diameter together add only about 0.003 AUC on top of condition alone (condition-only model: 0.578; full model: 0.581). Condition is doing nearly all the work — species differences (London planetree elevated, Callery pear lower than baseline) are real but small riders on top of it, not an independent finding worth much stage time on their own.</li>
+        <li><strong>Does diameter's effect saturate?</strong> It doesn't saturate — it's U-shaped. Checked directly: raw hazard rate is 8.97% for the smallest trees (0–4"), drops to 5.07% for 4–9", then climbs back to 8.32% for 17"+. A single "small tree" flag (dbh under 5") alone scores about as well as the city's own risk-rating field — worth knowing before writing a field rule that assumes risk only rises with size.</li>
       </ul>
 
       <h3>Confusion matrix and picking a threshold</h3>
@@ -671,14 +677,14 @@
       <h2>Implications and recommendations</h2>
 
       <h3>If the buyer is NYC Parks Dept forestry operations</h3>
-      <p><strong>Today:</strong> the hazard queue is worked roughly in arrival order. <strong>The ask:</strong> crew dispatchers sort the open queue by predicted risk (or apply the field rule directly) before assigning routes — quantify with the top-decile capture number once finalized.</p>
+      <p><strong>Today:</strong> the hazard queue is worked roughly in arrival order. <strong>The ask:</strong> crew dispatchers sort the open queue by predicted risk (or apply the field rule directly) before assigning routes — a 1.56× lift in the top-risk group means the same inspection capacity catches more real problems, without needing more crews.</p>
 
       <h3>If the buyer is a property/casualty insurer</h3>
       <p><strong>Today:</strong> tree-related claims are handled reactively, after a claim is filed. <strong>The ask:</strong> the insurer's risk team gets a ranked list of insured addresses with a nearby high-risk tree, used either to request proactive trimming as a loss-prevention condition, or to fold tree-proximity risk into pricing. This is the stronger pitch specifically because the data's bias (over-representing busy, developed streets) is exactly the population an insurer already cares about.</p>
 
       <div class="callout good">
         <span class="tag">The line for the actual pitch</span>
-        <p>Weak version: "our model predicts tree hazards." Strong version: "reordering the queue by this model catches roughly 2× the hazard trees a random 10% inspection would — and the biggest miss in the current system is new plantings, not declining ones."</p>
+        <p>Weak version: "our model predicts tree hazards." Strong version: "reordering the queue by this model catches 1.56× the hazard trees a same-size random inspection would, beating both the naive size-only heuristic and the city's own risk field — and a hazard location stays elevated risk after every replanting, regardless of what's replanted there."</p>
       </div>
     </section>
 
@@ -687,7 +693,7 @@
       <h2>Honest caveats — say these before Q&amp;A finds them</h2>
 
       <h3>1. The 36.2% yield, and the missing 64% isn't random</h3>
-      <p>The single biggest drop-off (54.1% at Step 1) is requests with no <code>physicalid</code> recorded at intake — very unlikely to be random. Plausible mechanism: unaddressed hazards skew toward park-interior trees, not curbside ones. If so, this model really predicts <strong>curbside street-tree hazard risk</strong>, not city-wide risk — name that scope explicitly.</p>
+      <p>The single biggest drop-off is at Step 1 — 45.9% of requests have no <code>physicalid</code> recorded at intake — very unlikely to be random. Plausible mechanism: unaddressed hazards skew toward park-interior trees, not curbside ones. If so, this model really predicts <strong>curbside street-tree hazard risk</strong>, not city-wide risk — name that scope explicitly.</p>
 
       <h3>2. The join is three datasets deep</h3>
       <p>Heavier plumbing than the two-dataset ideal — an accepted tradeoff for the buyer-aligned bias that makes this idea stand out. Keep the data-walkthrough section of the actual talk tight and visual (a three-box join diagram, not a field-by-field narration).</p>
@@ -698,10 +704,17 @@
       <h3>4. Condition ratings are inspector-assessed, not purely objective</h3>
       <p>Inspection thoroughness varies by district workload. If borough-level patterns show up strongly, be ready to name that as a possible practice artifact rather than asserting it as a real risk difference.</p>
 
+      <h3>5. The "young tree" twist may partly be tree replacement, not sapling fragility</h3>
+      <p>Condition/size come from a September 2026 snapshot of whoever occupies a planting space today, not necessarily the tree that was there when the hazard was reported. At least 18.8% of "Excellent"-condition hazard-matched trees were planted after their own hazard report — confirmed replacements. The rest can't be cleanly separated from that same effect. See Results for the full explanation and the recommendation that sidesteps needing to resolve it.</p>
+
+      <h3>6. The modeling population is enriched with cases, not a clean random sample</h3>
+      <p>The 107,730-tree training population is a 10% systematic sample of the inventory <em>plus every hazard-matched tree added back in</em>, so hazard prevalence in the modeling data (13.23%) is far higher than the true city-wide rate (roughly 1–2%). This leaves the odds ratios valid (case-control sampling doesn't bias them), but it means the predicted probabilities and the "top 13%" cutoff do <strong>not</strong> directly generalize to ranking all 1.1M real trees without re-calibration — flag this if asked how the field rule would actually be deployed at full scale.</p>
+
       <h3>Anticipated Q&amp;A, answered in advance</h3>
       <ul>
         <li><em>"Why not the 2015 Street Tree Census — it's more complete?"</em> — It's a one-time historical snapshot, last touched 2017; the live Tree Points table is the actual current inventory.</li>
-        <li><em>"Isn't 'bigger, unhealthier trees are riskier' obvious?"</em> — That relationship was used as a build-time sanity check, not presented as the finding. The presentable result is the species/condition/size combination that's risky <em>beyond</em> what size and condition alone predict — the young-tree twist.</li>
+        <li><em>"Isn't 'bigger, unhealthier trees are riskier' obvious?"</em> — It's not even true in this data: hazard rate by diameter is U-shaped (high for the smallest trees, dips in the middle, rises again for the largest), and condition doesn't rank the way you'd expect either — "Excellent" carries the highest odds ratio of any condition, not the lowest.</li>
+        <li><em>"So are young trees actually more dangerous, or not?"</em> — Honestly unresolved. At least 18.8% of the "Excellent" hazard trees are confirmed replacements planted after their own hazard event; the rest can't be cleanly separated from that same effect with this data. Say this plainly rather than picking a side the data doesn't support.</li>
         <li><em>"What happens to the 64% you couldn't match?"</em> — Answered directly in caveat 1: named as scope (curbside trees), not silence.</li>
       </ul>
     </section>
@@ -712,49 +725,263 @@
       <p>Packages: <code>httr</code>, <code>jsonlite</code>, <code>dplyr</code>, <code>pROC</code>. Two real bugs worth knowing if you extend this script: R silently formats large offsets like <code>100000</code> as <code>1e+05</code> in a URL unless <code>options(scipen=999)</code> is set — Socrata rejects it; and Socrata's <code>.json</code> endpoint only accepts <code>POST</code> for writes (it demands auth) — reads must use <code>GET</code>.</p>
 
       <details class="rcode">
-        <summary>Show the full pull-join-model script</summary>
+        <summary>Show the full pull-join-model script (the actual one that was run)</summary>
         <div class="code-block">
-          <span class="fname">01_pull_and_model.R</span>
-          <pre><code>options(scipen = 999)  # otherwise offsets like 100000 get sent as "1e+05"
+          <span class="fname">01_pull_and_model.R — actual file, not an excerpt</span>
+          <pre><code>## Tree Hazard Triage -- pull live NYC Open Data, join, fit model, evaluate
+## Run: Rscript 01_pull_and_model.R
+## Writes intermediate CSVs to this folder + prints all results to stdout.
 
-library(httr); library(jsonlite); library(dplyr)
+options(scipen = 999)  # otherwise large offsets like 100000 get sent as "1e+05" and Socrata rejects them
+
+suppressMessages({
+  library(httr)
+  library(jsonlite)
+  library(dplyr)
+})
 
 BASE &lt;- "https://data.cityofnewyork.us/resource/"
 
-soql_get &lt;- function(dataset_id, select, where = NULL, page_size = 25000) {
-  out &lt;- list(); offset &lt;- 0
+soql_get &lt;- function(dataset_id, select, where = NULL, page_size = 50000, max_pages = 40) {
+  out &lt;- list()
+  offset &lt;- 0
   repeat {
     params &lt;- list(`$select` = select, `$limit` = page_size, `$offset` = offset)
     if (!is.null(where)) params[["$where"]] &lt;- where
-    resp &lt;- GET(paste0(BASE, dataset_id, ".json"), query = params, timeout(180))
-    page &lt;- fromJSON(content(resp, as = "text", encoding = "UTF-8"), flatten = TRUE)
-    if (nrow(page) == 0) break
+    page &lt;- NULL
+    backoffs &lt;- c(5, 10, 20, 30, 45, 60, 60, 60)
+    for (attempt in seq_along(backoffs)) {
+      resp &lt;- tryCatch(
+        GET(paste0(BASE, dataset_id, ".json"), query = params, timeout(180),
+            add_headers(`User-Agent` = "mbacourse-tree-project/1.0")),
+        error = function(e) NULL
+      )
+      if (!is.null(resp) &amp;&amp; status_code(resp) == 200) {
+        page &lt;- fromJSON(content(resp, as = "text", encoding = "UTF-8"), flatten = TRUE)
+        break
+      }
+      body_snippet &lt;- if (!is.null(resp)) substr(content(resp, as = "text", encoding = "UTF-8"), 1, 300) else "no response"
+      cat(sprintf("  (retry %d for %s offset %d, status %s, waiting %ds) body: %s\n",
+                  attempt, dataset_id, offset, if (is.null(resp)) "NA" else status_code(resp),
+                  backoffs[attempt], body_snippet))
+      Sys.sleep(backoffs[attempt])
+    }
+    if (is.null(page)) stop(sprintf("Failed to pull %s at offset %d after %d attempts", dataset_id, offset, length(backoffs)))
+    if (length(page) == 0 || nrow(page) == 0) break
     out[[length(out) + 1]] &lt;- page
+    cat(sprintf("  %s: pulled %d rows (offset %d)\n", dataset_id, nrow(page), offset))
     if (nrow(page) &lt; page_size) break
     offset &lt;- offset + page_size
+    if (offset / page_size &gt;= max_pages) break
+    Sys.sleep(1.5)
   }
+  if (length(out) == 0) return(data.frame())
   bind_rows(out)
 }
 
-# 1. Hazard requests, 2023+, with a physicalid
-hazard_sr &lt;- soql_get("mu46-p9is", "physicalid,createddate,boroughcode",
-  "srcategory='Hazard' AND createddate &gt;= '2023-01-01T00:00:00' AND physicalid IS NOT NULL")
+## --- 1. Forestry Service Requests: Hazard category, 2023+, has a physicalid ----
+if (file.exists("raw_hazard_sr.csv")) {
+  cat("Loading cached raw_hazard_sr.csv...\n")
+  hazard_sr &lt;- read.csv("raw_hazard_sr.csv", stringsAsFactors = FALSE)
+} else {
+  cat("Pulling Forestry Service Requests (mu46-p9is)...\n")
+  hazard_sr &lt;- soql_get(
+    "mu46-p9is",
+    select = "physicalid,createddate,boroughcode",
+    where  = "srcategory='Hazard' AND createddate &gt;= '2023-01-01T00:00:00' AND physicalid IS NOT NULL"
+  )
+  write.csv(hazard_sr, "raw_hazard_sr.csv", row.names = FALSE)
+}
+hazard_sr$createddate &lt;- as.Date(hazard_sr$createddate)
+cat(sprintf("Hazard SR rows with physicalid: %d\n", nrow(hazard_sr)))
 
-# 2. Planting spaces (Populated), deduped to latest per physicalid
-planting_spaces &lt;- soql_get("82zj-84is", "physicalid,globalid,updateddate", "psstatus='Populated'")
-ps_dedup &lt;- planting_spaces %&gt;% filter(!is.na(physicalid)) %&gt;%
-  group_by(physicalid) %&gt;% slice_max(as.Date(updateddate), n = 1, with_ties = FALSE) %&gt;% ungroup()
+## --- 2. Forestry Planting Spaces: Populated, physicalid -&gt; globalid ------------
+if (file.exists("raw_planting_spaces.csv")) {
+  cat("Loading cached raw_planting_spaces.csv...\n")
+  planting_spaces &lt;- read.csv("raw_planting_spaces.csv", stringsAsFactors = FALSE)
+} else {
+  cat("\nPulling Forestry Planting Spaces (82zj-84is) -- this is the big one, ~19 pages...\n")
+  planting_spaces &lt;- soql_get(
+    "82zj-84is",
+    select = "physicalid,globalid,updateddate",
+    where  = "psstatus='Populated'",
+    page_size = 25000
+  )
+  write.csv(planting_spaces, "raw_planting_spaces.csv", row.names = FALSE)
+}
+cat(sprintf("Planting Spaces (Populated) rows pulled: %d\n", nrow(planting_spaces)))
 
-# 3. Join hazard requests through to a tree, fit and evaluate
-hazard_trees &lt;- hazard_sr %&gt;% inner_join(ps_dedup, by = "physicalid")
+## dedupe: physicalid is not unique (historical rows) -- keep most recently updated
+planting_spaces$updateddate &lt;- as.Date(planting_spaces$updateddate)
+planting_spaces_dedup &lt;- planting_spaces %&gt;%
+  filter(!is.na(physicalid)) %&gt;%
+  group_by(physicalid) %&gt;%
+  slice_max(updateddate, n = 1, with_ties = FALSE) %&gt;%
+  ungroup()
+cat(sprintf("Distinct physicalid after dedup: %d\n", nrow(planting_spaces_dedup)))
 
-model &lt;- glm(hazard_train ~ species_bucket + tpcondition + dbh,
-             data = train_data, family = "binomial")
-benchmark &lt;- glm(hazard_train ~ dbh, data = train_data, family = "binomial")
+## --- 3. Join hazard_sr -&gt; planting_spaces_dedup: physicalid resolves to a globalid ---
+hazard_join1 &lt;- hazard_sr %&gt;% inner_join(planting_spaces_dedup, by = "physicalid")
+cat(sprintf("\nStep 2 yield (physicalid resolves to a planting space): %d / %d = %.1f%%\n",
+            nrow(hazard_join1), nrow(hazard_sr), 100 * nrow(hazard_join1) / nrow(hazard_sr)))
 
+hazard_globalids_dates &lt;- hazard_join1 %&gt;%
+  group_by(globalid) %&gt;%
+  summarise(first_hazard_date = min(createddate), n_hazard_reports = n(), .groups = "drop")
+cat(sprintf("Distinct trees (globalid) with at least one matched hazard report: %d\n",
+            nrow(hazard_globalids_dates)))
+
+## --- 4. Forestry Tree Points: 10%% systematic sample (objectid mod 10 == 0) --------
+if (file.exists("raw_tree_sample.csv")) {
+  cat("Loading cached raw_tree_sample.csv...\n")
+  tree_sample &lt;- read.csv("raw_tree_sample.csv", stringsAsFactors = FALSE)
+} else {
+  cat("\nPulling Forestry Tree Points 10%% systematic sample (hn5i-inap)...\n")
+  tree_sample &lt;- soql_get(
+    "hn5i-inap",
+    select = "plantingspaceglobalid,genusspecies,dbh,tpcondition,riskrating",
+    where  = "objectid % 10 = 0"
+  )
+  write.csv(tree_sample, "raw_tree_sample.csv", row.names = FALSE)
+}
+cat(sprintf("Tree Points sample rows pulled: %d\n", nrow(tree_sample)))
+
+## also explicitly pull tree-point rows for hazard-matched trees NOT already in the
+## 10%% sample, so we don't lose positive cases to sampling -- batch by 1000 ids
+missing_globalids &lt;- setdiff(hazard_globalids_dates$globalid, tree_sample$plantingspaceglobalid)
+cat(sprintf("Hazard-matched trees not already in the 10%% sample: %d -- fetching them explicitly\n",
+            length(missing_globalids)))
+extra_tree_rows &lt;- list()
+if (file.exists("raw_extra_tree_rows.csv")) {
+  cat("Loading cached raw_extra_tree_rows.csv...\n")
+  extra_tree_rows &lt;- list(read.csv("raw_extra_tree_rows.csv", stringsAsFactors = FALSE))
+} else if (length(missing_globalids) &gt; 0) {
+  chunks &lt;- split(missing_globalids, ceiling(seq_along(missing_globalids) / 100))
+  for (i in seq_along(chunks)) {
+    id_list &lt;- paste(sprintf("'%s'", chunks[[i]]), collapse = ",")
+    where_clause &lt;- sprintf("plantingspaceglobalid in (%s)", id_list)
+    part &lt;- soql_get("hn5i-inap",
+                      select = "plantingspaceglobalid,genusspecies,dbh,tpcondition,riskrating",
+                      where = where_clause, page_size = 500, max_pages = 1)
+    if (i %% 20 == 0) cat(sprintf("  missing-tree batch %d/%d: got %d rows so far this batch\n", i, length(chunks), nrow(part)))
+    if (nrow(part) &gt; 0) extra_tree_rows[[length(extra_tree_rows) + 1]] &lt;- part
+    Sys.sleep(0.3)
+  }
+  if (length(extra_tree_rows) &gt; 0) {
+    write.csv(bind_rows(extra_tree_rows), "raw_extra_tree_rows.csv", row.names = FALSE)
+  }
+}
+force_char &lt;- function(df) {
+  if (nrow(df) == 0) return(df)
+  df %&gt;% mutate(across(everything(), as.character))
+}
+if (length(extra_tree_rows) &gt; 0) {
+  tree_all &lt;- bind_rows(force_char(tree_sample), force_char(bind_rows(extra_tree_rows)))
+} else {
+  tree_all &lt;- force_char(tree_sample)
+}
+tree_all &lt;- tree_all %&gt;% distinct(plantingspaceglobalid, .keep_all = TRUE)
+cat(sprintf("Combined tree population for modeling: %d rows\n", nrow(tree_all)))
+
+## --- 5. Restrict to living trees with a recorded condition (steps 3/5 of join chain) ---
+tree_alive &lt;- tree_all %&gt;%
+  filter(!is.na(tpcondition), !tpcondition %in% c("Dead", "Unknown"))
+cat(sprintf("Living trees with recorded condition: %d (dropped %d dead/unknown/blank)\n",
+            nrow(tree_alive), nrow(tree_all) - nrow(tree_alive)))
+
+## --- 6. Attach hazard outcome + dates to the modeling population ------------------
+model_data &lt;- tree_alive %&gt;%
+  left_join(hazard_globalids_dates, by = c("plantingspaceglobalid" = "globalid")) %&gt;%
+  mutate(
+    dbh = as.numeric(dbh),
+    riskrating = suppressWarnings(as.numeric(riskrating)),
+    hazard_ever = ifelse(is.na(first_hazard_date), 0, 1)
+  )
+
+cat(sprintf("\nOverall hazard prevalence in modeling population: %d / %d = %.2f%%\n",
+            sum(model_data$hazard_ever), nrow(model_data), 100 * mean(model_data$hazard_ever)))
+
+## bucket species to top 10 + Other (hundreds of rare species otherwise)
+top_species &lt;- model_data %&gt;% count(genusspecies, sort = TRUE) %&gt;% slice_head(n = 10) %&gt;% pull(genusspecies)
+model_data &lt;- model_data %&gt;%
+  mutate(species_bucket = ifelse(genusspecies %in% top_species, genusspecies, "Other"))
+
+## --- 7. Temporal design: train on 2023-24 outcomes, test forward on 2025-26 -------
+## "at risk as of end of 2024" = had NOT already had a hazard report before 2025-01-01
+cutoff &lt;- as.Date("2025-01-01")
+model_data &lt;- model_data %&gt;%
+  mutate(
+    hazard_train = ifelse(!is.na(first_hazard_date) &amp; first_hazard_date &lt; cutoff, 1, 0),
+    at_risk_end_2024 = ifelse(is.na(first_hazard_date) | first_hazard_date &gt;= cutoff, TRUE, FALSE),
+    hazard_test = ifelse(!is.na(first_hazard_date) &amp; first_hazard_date &gt;= cutoff, 1, 0)
+  )
+
+train_data &lt;- model_data  # fit on the full population's 2023-24 outcome
+test_data  &lt;- model_data %&gt;% filter(at_risk_end_2024)  # only trees not already flagged pre-2025
+
+cat(sprintf("Train rows: %d (hazard_train prevalence %.2f%%)\n",
+            nrow(train_data), 100 * mean(train_data$hazard_train)))
+cat(sprintf("Test rows (still at risk as of end of 2024): %d (hazard_test prevalence %.2f%%)\n",
+            nrow(test_data), 100 * mean(test_data$hazard_test)))
+
+train_data$tpcondition &lt;- relevel(factor(train_data$tpcondition), ref = "Good")
+test_data$tpcondition  &lt;- factor(test_data$tpcondition, levels = levels(train_data$tpcondition))
+train_data$species_bucket &lt;- factor(train_data$species_bucket)
+test_data$species_bucket  &lt;- factor(test_data$species_bucket, levels = levels(train_data$species_bucket))
+train_data$boroughcode &lt;- NULL  # not on tree_points; borough dropped from this cut (see notes)
+
+## --- 8. Fit the full model + the diameter-only benchmark -------------------------
+full_model &lt;- glm(hazard_train ~ species_bucket + tpcondition + dbh,
+                   data = train_data, family = "binomial")
+benchmark_model &lt;- glm(hazard_train ~ dbh, data = train_data, family = "binomial")
+
+cat("\n=== FULL MODEL: odds ratios ===\n")
+print(round(exp(coef(full_model)), 3))
+
+cat("\n=== FULL MODEL: summary ===\n")
+print(summary(full_model))
+
+## --- 9. Evaluate forward on the temporal holdout ----------------------------------
+test_data$pred_full      &lt;- predict(full_model,      newdata = test_data, type = "response")
+test_data$pred_benchmark &lt;- predict(benchmark_model,  newdata = test_data, type = "response")
+
+if (!requireNamespace("pROC", quietly = TRUE)) install.packages("pROC", repos = "https://cloud.r-project.org")
 library(pROC)
-auc(roc(test_data$hazard_test, predict(model, test_data, type = "response")))
-auc(roc(test_data$hazard_test, predict(benchmark, test_data, type = "response")))</code></pre>
+roc_full &lt;- roc(test_data$hazard_test, test_data$pred_full, quiet = TRUE)
+roc_bench &lt;- roc(test_data$hazard_test, test_data$pred_benchmark, quiet = TRUE)
+cat(sprintf("\nAUC, full model on 2025-26 holdout:      %.3f\n", auc(roc_full)))
+cat(sprintf("AUC, diameter-only benchmark on holdout:  %.3f\n", auc(roc_bench)))
+
+## --- 10. Existing Parks risk rating, as a second benchmark (bonus finding) --------
+has_rr &lt;- test_data %&gt;% filter(!is.na(riskrating))
+if (nrow(has_rr) &gt; 50) {
+  roc_rr &lt;- roc(has_rr$hazard_test, has_rr$riskrating, quiet = TRUE)
+  cat(sprintf("AUC, Parks' own existing riskrating field: %.3f (n=%d with a rating)\n",
+              auc(roc_rr), nrow(has_rr)))
+}
+
+## --- 11. Top-decile field-rule extraction -----------------------------------------
+cutoff90 &lt;- quantile(test_data$pred_full, 0.9, na.rm = TRUE)
+top_decile &lt;- test_data %&gt;% filter(pred_full &gt;= cutoff90)
+cat(sprintf("\nTop-decile risk cutoff (predicted prob): %.4f\n", cutoff90))
+cat(sprintf("Top-decile capture rate of actual 2025-26 hazard trees: %d / %d = %.1f%%\n",
+            sum(top_decile$hazard_test), sum(test_data$hazard_test),
+            100 * sum(top_decile$hazard_test) / sum(test_data$hazard_test)))
+cat("Top-decile composition (species x condition):\n")
+print(top_decile %&gt;% count(species_bucket, tpcondition, sort = TRUE) %&gt;% slice_head(n = 10))
+
+conf_mat &lt;- table(predicted = ifelse(test_data$pred_full &gt;= cutoff90, 1, 0),
+                   actual = test_data$hazard_test)
+cat("\nConfusion matrix at top-decile threshold:\n")
+print(conf_mat)
+
+## --- save everything for reference -------------------------------------------------
+saveRDS(list(full_model = full_model, benchmark_model = benchmark_model,
+             train_data = train_data, test_data = test_data),
+        "model_results.rds")
+write.csv(model_data, "final_modeling_table.csv", row.names = FALSE)
+cat("\nDone. Saved model_results.rds and final_modeling_table.csv\n")
+</code></pre>
         </div>
       </details>
     </section>
