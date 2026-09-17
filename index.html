@@ -102,8 +102,7 @@
   /* ---- Header ---- */
   .page-header{
     grid-column:1/-1;
-    max-width:820px;
-    margin:0 auto 8px;
+    margin:0 0 8px;
     text-align:left;
   }
   .eyebrow{
@@ -147,8 +146,7 @@
   /* ---- Stat band ---- */
   .stat-band{
     grid-column:1/-1;
-    max-width:820px;
-    margin:22px auto 4px;
+    margin:22px 0 4px;
     display:grid;
     grid-template-columns:repeat(4,1fr);
     gap:1px;
@@ -349,6 +347,35 @@
     margin:6px 0 18px;
   }
 
+  .tldr{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-left:4px solid var(--accent);
+    border-radius:10px;
+    padding:20px 22px;
+    margin:24px 0 36px;
+    box-shadow:var(--shadow);
+  }
+  .tldr .tldr-label{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--accent-strong);
+    font-weight:600;
+    margin-bottom:12px;
+    display:block;
+  }
+  .tldr ul{ margin:0; padding-left:20px; }
+  .tldr li{ margin-bottom:9px; font-size:14.5px; max-width:none; }
+  .tldr li:last-child{ margin-bottom:0; }
+  .tldr .jump{
+    display:block;
+    margin-top:14px;
+    font-size:12.5px;
+    color:var(--ink-faint);
+  }
+
   footer{
     grid-column:1/-1;
     max-width:820px;
@@ -426,6 +453,18 @@
   <article>
 
     <p class="lede">NYC Parks has roughly 1.1 million street trees and a growing backlog of hazard reports, but no way to rank which tree gets inspected first — crews work the queue in something close to first-come-first-served order. This is the full build: what each source table actually contains, exactly how they join, the model fit in R using only what this course's Sessions 4–6 actually teach, and what came out when it was run against live data.</p>
+
+    <div class="tldr">
+      <span class="tldr-label">TL;DR — for anyone short on time</span>
+      <ul>
+        <li><strong>The ask:</strong> NYC Parks has ~1.1M street trees and no way to rank hazard reports by actual risk — we built a model that does, using only city data and methods this course teaches.</li>
+        <li><strong>The twist:</strong> "Excellent" condition doesn't mean a healthy old tree — it means a newly planted sapling (median 3&Prime; trunk vs. 9–13&Prime; for every other rating), and these young trees are 6× over-represented in the model's highest-risk group.</li>
+        <li><strong>The proof:</strong> the model (AUC 0.581) beats both the naive "biggest trees first" heuristic (0.495 — no better than chance) and the city's own existing risk field (0.533), catching 2× as many real hazard trees as a random 10% inspection would.</li>
+        <li><strong>The catch, disclosed up front:</strong> only 36.2% of hazard complaints trace to a specific living tree in the data — a real limitation, stated plainly rather than hidden.</li>
+        <li><strong>The recommendation:</strong> flag new plantings for elevated monitoring during their first few years, instead of waiting for them to look unhealthy.</li>
+      </ul>
+      <span class="jump">Full detail — data, join chain, model, caveats — below ↓</span>
+    </div>
 
     <section id="context">
       <span class="sec-kicker">01</span>
