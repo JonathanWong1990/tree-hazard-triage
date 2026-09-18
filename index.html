@@ -429,9 +429,9 @@
 
   <div class="stat-band">
     <div class="stat"><div class="n">36.2%</div><div class="l">hazard requests joined to a living, condition-rated tree</div></div>
-    <div class="stat"><div class="n">0.581</div><div class="l">model AUC on a true forward holdout</div></div>
-    <div class="stat"><div class="n risk">1.56×</div><div class="l">lift over random in the top-risk group (13%)</div></div>
-    <div class="stat"><div class="n">3&Prime;</div><div class="l">median trunk size of "Excellent"-rated trees — the twist</div></div>
+    <div class="stat"><div class="n">0.581</div><div class="l">model AUC, evaluated forward in time</div></div>
+    <div class="stat"><div class="n risk">7.1×</div><div class="l">more likely to repeat if a location has hazard history</div></div>
+    <div class="stat"><div class="n">1.56×</div><div class="l">lift over random in the top-risk group (13%)</div></div>
   </div>
 
   <nav class="toc">
@@ -458,10 +458,11 @@
       <span class="tldr-label">TL;DR — for anyone short on time</span>
       <ul>
         <li><strong>The ask:</strong> NYC Parks has ~1.1M street trees and no way to rank hazard reports by actual risk — we built a model that does, using only city data and methods this course teaches.</li>
-        <li><strong>The twist:</strong> "Excellent" condition doesn't mean a healthy old tree — it means a newly planted sapling (median 3&Prime; trunk vs. 9–13&Prime; for every other rating), and these young trees are 6× over-represented in the model's highest-risk group. <strong>Why is genuinely unresolved</strong> — at least 18.8% are confirmed tree replacements (planted after their own hazard report), not proof of sapling fragility.</li>
+        <li><strong>The real finding:</strong> a street segment with a hazard report before 2025 is <strong>7.1× more likely</strong> (50.6% vs. 7.1%) to generate another one in 2025–26 — checked across all 107,730 trees in the modeling population, not a small sample.</li>
+        <li><strong>A finding we chased and ruled out:</strong> we initially thought "Excellent condition" trees (really: young saplings) were the risk. Digging into our own join, the field linking a complaint to "a tree" turned out to be a street-<em>segment</em> ID covering ~8 trees each — and the pick-one-tree step we used skews 2.2× toward young trees with zero hazard data involved. Most of that finding was the join, not the trees. We're saying so rather than keeping it.</li>
         <li><strong>The proof:</strong> the model (AUC 0.581) beats both the naive "biggest trees first" heuristic (0.495 — no better than chance) and the city's own existing risk field, catching 1.56× as many real hazard trees as a random sample of the same size would — real, modest, not the 2× first claimed.</li>
         <li><strong>The catch, disclosed up front:</strong> only 36.2% of hazard complaints trace to a specific living tree in the data — a real limitation, stated plainly rather than hidden.</li>
-        <li><strong>The recommendation:</strong> flag any planting space with a hazard history for elevated monitoring after every (re)planting — true whether the risk is sapling fragility or something about the location itself.</li>
+        <li><strong>The recommendation:</strong> flag any street segment with a hazard report for elevated monitoring for the following two years, regardless of which specific tree eventually gets blamed for the next one.</li>
       </ul>
       <span class="jump">Full detail — data, join chain, model, caveats — below ↓</span>
     </div>
@@ -554,7 +555,7 @@
           </tbody>
         </table>
       </div>
-      <p><strong>42,675 of 117,739 hazard requests since 2023 (36.2%) trace all the way through</strong> to a specific, living, condition-rated tree — this is the real, full-population number; an earlier 180-record sample had estimated a more optimistic ~47%, since superseded. That 42,675 is a count of <em>requests</em>, not distinct trees — since one tree can generate several requests, the actual number of distinct trees this yields is smaller: 14,258 trees with at least one matched hazard report across the full window, of which 7,067 had one specifically before 2025 (the positive class the model was trained on).</p>
+      <p><strong>42,675 of 117,739 hazard requests since 2023 (36.2%) trace all the way through</strong> to a specific, living, condition-rated tree — this is the real, full-population number; an earlier 180-record sample had estimated a more optimistic ~47%, since superseded. That 42,675 is a count of <em>requests</em>, not distinct trees — since one tree can generate several requests, the actual number of distinct trees this yields is smaller: 14,258 trees with at least one matched hazard report across the full window, of which 7,071 had one specifically before 2025 (the positive class the model was trained on).</p>
       <p>Step 1 alone drops the largest share — 45.9% of hazard requests (54,069 of 117,739) never had a <code>physicalid</code> recorded at intake, i.e. the 54.1% figure above is the share that <em>survived</em>, not the drop-off itself. This is unlikely to be random; see Caveats.</p>
     </section>
 
@@ -579,43 +580,44 @@
       </div>
       <div class="callout risk">
         <span class="tag">Correction</span>
-        <p>Two things were stated too cleanly in an earlier pass. First: the <code>riskrating</code> row runs on a <strong>different, smaller population</strong> — only 61% of trees have a rating at all, so 0.533 isn't directly comparable to the other two rows. Recomputed on the shared 61,317-tree subset: full model 0.548, <code>riskrating</code> 0.533, diameter-only 0.528 — the model's edge over the city's own system shrinks to 0.015 on a fair comparison. Real, but modest. Second: ties in the model's predicted scores push the "top decile" cutoff to <strong>13.0% of trees, not 10%</strong>, so the fair baseline is a random 13% sample (expected to catch ~937 hazard trees), not a random 10% sample. The actual lift is <strong>1.56×</strong>, not 2×.</p>
+        <p>Two things were stated too cleanly in an earlier pass. First: the <code>riskrating</code> row runs on a <strong>different, smaller population</strong> — only 61% of trees have a rating at all, so 0.533 isn't directly comparable to the other two rows. Recomputed on the shared 61,317-tree subset: full model 0.547, <code>riskrating</code> 0.533, diameter-only 0.528 — the model's edge over the city's own system shrinks to 0.014 on a fair comparison (statistically real — DeLong test p=0.002 — but this is measured generously, since the model's own training data overlaps its test population in a way <code>riskrating</code>'s doesn't; treat 0.014 as an upper bound on the true edge, not a precise estimate). Second: ties in the model's predicted scores push the "top decile" cutoff to <strong>13.0% of trees, not 10%</strong>, so the fair baseline is a random 13% sample (expected to catch ~937 hazard trees), not a random 10% sample. The actual lift is <strong>1.56×</strong>, not 2×.</p>
       </div>
       <div class="callout good">
         <span class="tag">Honest read</span>
-        <p>A real, usable lift — not a dramatic one, and smaller than first stated. The headline isn't the raw AUC, it's that the fitted model beats both the naive "biggest trees first" heuristic and the city's own existing risk-rating field, even on a fair like-for-like comparison — just by a narrower margin than a first pass suggested.</p>
+        <p>A real, usable lift — not a dramatic one, and smaller than first stated. The headline isn't the raw AUC, it's that the fitted model beats both the naive "biggest trees first" heuristic and the city's own existing risk-rating field, even on a fair like-for-like comparison — just by a narrower margin than a first pass suggested. This AUC is still valid as a segment-level result (see below for why "segment-level" matters), even though the species/condition breakdown that follows the model turned out not to be.</p>
       </div>
 
-      <h3>The twist: hazard-flagged locations skew toward young trees — the cause is unresolved</h3>
-      <p>Condition does not behave the way intuition suggests, and the pattern itself is real and reproducible:</p>
+      <h3>A problem we found in our own join, and what it broke</h3>
+      <p><code>physicalid</code> — the field used throughout this page to link a hazard complaint to "the tree" — turns out to be a <strong>street-segment ID, not a single planting space</strong>. Checked directly against live records: <code>physicalid 0038824</code> alone covers ten different addresses on Ocean Parkway (1002 through 1170), 265 separate historical rows, 260 distinct tree records. Median across the dataset: <strong>8 distinct trees share every one <code>physicalid</code></strong>.</p>
+      <p>The pipeline's join picks <em>one</em> of those trees per segment — whichever has the most recently updated planting-space record — to represent every hazard complaint from anywhere on that block. That pick is not neutral: run on the unbiased 10% tree sample, with <strong>zero hazard data involved</strong>, the tree the tie-break would pick is already 23.6% "Excellent" condition (n=5,496) versus 10.8% for the trees it passes over (n=90,319) — a <strong>2.2× skew toward young trees baked into the join itself</strong>, before a single hazard record enters the picture.</p>
+
+      <div class="callout risk">
+        <span class="tag">What we initially thought — and ruled out</span>
+        <p>An earlier pass presented "Excellent condition trees are 6× over-represented among hazard-flagged locations" as the headline finding, then softened its causal story once tree-replacement showed up as a confound. Neither of those was the real problem. The bigger issue is upstream of both: because the tie-break itself already selects young trees 2.2× more often with no hazard data involved at all, most of that 6× figure is very likely explained by <em>which tree the join happens to pick</em>, not by anything about hazard risk. We're not presenting the species/condition "twist" as a finding any more — it doesn't survive contact with how the join actually works.</p>
+      </div>
+
+      <h3>The real finding: flagged locations repeat</h3>
+      <p>This is the one that survives, because it doesn't depend on correctly identifying which specific tree on a block is the problem — only on whether that block segment has hazard activity at all, which is a direct fact from the raw complaint data, not something the join has to arbitrate.</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Condition</th><th class="num">Odds ratio vs. "Good"</th><th class="num">Median diameter</th><th class="num">Share of population</th><th class="num">Share of top-risk group</th></tr></thead>
+          <thead><tr><th>Group</th><th class="num">n</th><th class="num">Got a hazard report in 2025–26</th></tr></thead>
           <tbody>
-            <tr><td>Excellent</td><td class="num hl-risk">2.58 (highest)</td><td class="num hl-risk">3&Prime;</td><td class="num">11.6%</td><td class="num hl-risk">71.6%</td></tr>
-            <tr><td>Critical</td><td class="num">1.89</td><td class="num">12&Prime;</td><td class="num">0.8%</td><td class="num">small</td></tr>
-            <tr><td>Poor</td><td class="num">1.74</td><td class="num">13&Prime;</td><td class="num">5.3%</td><td class="num">small</td></tr>
-            <tr><td>Fair</td><td class="num">1.41</td><td class="num">12&Prime;</td><td class="num">34.0%</td><td class="num">small</td></tr>
-            <tr><td>Good (baseline)</td><td class="num">1.00</td><td class="num">9&Prime;</td><td class="num">48.4%</td><td class="num">—</td></tr>
+            <tr><td>Had a hazard report before 2025</td><td class="num">7,071</td><td class="num hl-risk">50.6%</td></tr>
+            <tr><td>No hazard report before 2025</td><td class="num">100,659</td><td class="num">7.1%</td></tr>
           </tbody>
         </table>
       </div>
-      <p>"Excellent" is not what it sounds like — it isn't the label given to grand, healthy, mature street trees. It's overwhelmingly the label given to <strong>newly planted saplings</strong> (median diameter 3 inches, versus 9–13 inches for every other condition). These very young trees are roughly 6× over-represented in the model's top-risk group relative to their share of the population. London planetrees show a smaller but real version of the same pattern (species odds ratio 1.46, the single most significant species effect; 23.7% of the top-risk group vs. 10.9% of the population). One small myth-debunk worth a sentence: Callery pears, often assumed structurally weak, actually show a <em>lower</em> hazard odds ratio (0.68×) than the baseline species in this data.</p>
+      <p>A location with hazard history is <strong>7.1× more likely</strong> to generate another hazard report than one with none — computed across the full 107,730-tree modeling population, not a small subsample. This corrects a real gap from an earlier pass: the model's own <code>hazard_test</code> column is zero by construction for every already-flagged tree (a tree's first-ever hazard date can't be both before and after the 2025 cutoff), so this comparison was never actually run until now — it required rebuilding the outcome from the individual complaint records rather than the single summarized date. Script: <code>02_repeat_hazard_and_join_diagnosis.R</code>, in the R Build Plan below.</p>
 
-      <div class="callout risk">
-        <span class="tag">Correction — the cause is genuinely unresolved</span>
-        <p>An earlier pass stated confidently that this is sapling physical vulnerability — thin trunks, weak roots, exposure to storm and vehicle damage. That's a real possibility, but it isn't the only one, and it hasn't been established. The join links to a <em>planting space</em> (the sidewalk cutout), and condition/size are read from whoever occupies that space <strong>today</strong> — not necessarily the tree that was there when the hazard was reported. Checked directly against live planting-date records: <strong>at least 18.8% of "Excellent" hazard-matched trees were planted <em>after</em> their own hazard report</strong> — sometimes 2–3 years after. That's mechanical proof that a meaningful share of "young + hazardous" cases are really "this tree was removed and replaced, and the replacement inherited the address's hazard history." The rest can't be cleanly separated from that same effect using this data or this course's methods — the honest position is that we don't know how much of the pattern is real sapling fragility versus tree turnover, and we're not equipped to find out with what's available here.</p>
-      </div>
-
-      <h3>The recommendation that survives either way</h3>
-      <p>Rather than betting the recommendation on a cause that isn't settled, aim it at the one thing true regardless of mechanism: <strong>a planting space with a hazard history stays elevated risk</strong> — whether because a replacement sapling is itself vulnerable, or because something about that location (traffic, exposure, soil) keeps producing problems no matter what's planted there. Any space that has ever generated a hazard report should get an elevated-monitoring flag after every (re)planting, not just checked once and forgotten. That's a genuinely non-obvious recommendation nobody would guess from the dataset's field names alone, and it doesn't require resolving the sapling-vs-replacement question to be worth acting on.</p>
+      <h3>The recommendation</h3>
+      <p><strong>Flag any street segment with a hazard report for elevated monitoring for at least the following two years</strong>, regardless of which specific tree eventually gets blamed for the next one. This doesn't require knowing whether the cause is a bad tree, a bad location (traffic, exposure, soil), or something about how that segment gets replanted — it only requires knowing the segment has a track record, which the raw complaint data settles directly. It's also the one claim on this page that survived every round of scrutiny it was put through.</p>
 
       <h3>The field rule</h3>
-      <p>As a starting heuristic: any tree under roughly 5 inches in diameter, or sitting in a planting space with a prior hazard report, gets an elevated hazard-monitoring flag; London planetrees carry a standing moderate-priority multiplier regardless of condition. <strong>Not yet done:</strong> re-running the top-risk-group capture check using only this simplified rule, to confirm it captures most of the same lift as the full model — the next concrete step before this becomes a slide rule rather than a model description.</p>
+      <p>Any <code>physicalid</code> segment with a hazard report in the past 24 months gets an elevated-monitoring flag on its next inspection cycle, independent of species, condition, or size. (An earlier version of this page proposed a diameter-based rule — "flag anything under 5 inches" — built on the species/condition model above; that rule inherits the same join problem and isn't used any more.)</p>
 
       <div class="callout neutral">
         <span class="tag">Still open</span>
-        <p>Separately from the replacement question: new plantings may also cluster in active construction/streetscape-redesign zones, which independently generate more foot traffic and more 311 calls of every kind — a second, compounding reason condition alone can't be read as a clean health signal. Name both open questions in the presentation rather than picking one.</p>
+        <p>This is segment-level, not tree-level: it tells a crew which block to prioritize, not which of the ~8 trees on it to inspect first. Narrowing from segment to tree would need a real fix to the join (e.g. matching by geographic proximity instead of a shared administrative ID) — not attempted here, flagged as the honest next step rather than something this page solves.</p>
       </div>
     </section>
 
@@ -651,8 +653,8 @@
 
       <h3>Questions to actually ask of the output</h3>
       <ul>
-        <li><strong>Which species carry risk beyond what size/condition already explain?</strong> Less than hoped, checked directly: species and diameter together add only about 0.003 AUC on top of condition alone (condition-only model: 0.578; full model: 0.581). Condition is doing nearly all the work — species differences (London planetree elevated, Callery pear lower than baseline) are real but small riders on top of it, not an independent finding worth much stage time on their own.</li>
-        <li><strong>Does diameter's effect saturate?</strong> It doesn't saturate — it's U-shaped. Checked directly: raw hazard rate is 8.97% for the smallest trees (0–4"), drops to 5.07% for 4–9", then climbs back to 8.32% for 17"+. A single "small tree" flag (dbh under 5") alone scores about as well as the city's own risk-rating field — worth knowing before writing a field rule that assumes risk only rises with size.</li>
+        <li><strong>Which species carry risk beyond what size/condition already explain?</strong> Checked directly, species and diameter together add only about 0.003 AUC on top of condition alone (condition-only model: 0.578; full model: 0.581) — and per Results above, even the condition signal itself turned out to be substantially explained by which tree the join happens to pick, not a real species/condition effect. Don't build a slide around individual coefficients from this model; the AUC-level result (does the model beat the benchmarks) is what held up, not the attribute-level story.</li>
+        <li><strong>Does diameter's effect saturate?</strong> It doesn't saturate — it's U-shaped. Checked directly: raw hazard rate is 8.97% for the smallest trees (0–4"), drops to 5.07% for 4–9", then climbs back to 8.32% for 17"+. Interesting on its own, but same caveat applies: this is a diameter effect on whichever tree the join selected, not necessarily the tree that actually generated the hazard.</li>
       </ul>
 
       <h3>Confusion matrix and picking a threshold</h3>
@@ -680,11 +682,11 @@
       <p><strong>Today:</strong> the hazard queue is worked roughly in arrival order. <strong>The ask:</strong> crew dispatchers sort the open queue by predicted risk (or apply the field rule directly) before assigning routes — a 1.56× lift in the top-risk group means the same inspection capacity catches more real problems, without needing more crews.</p>
 
       <h3>If the buyer is a property/casualty insurer</h3>
-      <p><strong>Today:</strong> tree-related claims are handled reactively, after a claim is filed. <strong>The ask:</strong> the insurer's risk team gets a ranked list of insured addresses with a nearby high-risk tree, used either to request proactive trimming as a loss-prevention condition, or to fold tree-proximity risk into pricing. This is the stronger pitch specifically because the data's bias (over-representing busy, developed streets) is exactly the population an insurer already cares about.</p>
+      <p><strong>Today:</strong> tree-related claims are handled reactively, after a claim is filed. <strong>The ask:</strong> the insurer's risk team gets a ranked list of insured addresses on street segments with hazard history, used either to request proactive trimming as a loss-prevention condition, or to fold segment history into pricing. This is the stronger pitch specifically because the data's bias (over-representing busy, developed streets) is exactly the population an insurer already cares about. <strong>Not built:</strong> the actual segment-to-property geospatial join needed to turn this into a real address list — flag it as the next step, not a finished deliverable, if this framing is used.</p>
 
       <div class="callout good">
         <span class="tag">The line for the actual pitch</span>
-        <p>Weak version: "our model predicts tree hazards." Strong version: "reordering the queue by this model catches 1.56× the hazard trees a same-size random inspection would, beating both the naive size-only heuristic and the city's own risk field — and a hazard location stays elevated risk after every replanting, regardless of what's replanted there."</p>
+        <p>Weak version: "our model predicts tree hazards." Strong version: "a street segment with hazard history is 7.1× more likely to generate another report — and separately, reordering the inspection queue by our model catches 1.56× the hazard trees a same-size random inspection would, beating both the naive size-only heuristic and the city's own risk field."</p>
       </div>
     </section>
 
@@ -704,17 +706,17 @@
       <h3>4. Condition ratings are inspector-assessed, not purely objective</h3>
       <p>Inspection thoroughness varies by district workload. If borough-level patterns show up strongly, be ready to name that as a possible practice artifact rather than asserting it as a real risk difference.</p>
 
-      <h3>5. The "young tree" twist may partly be tree replacement, not sapling fragility</h3>
-      <p>Condition/size come from a September 2026 snapshot of whoever occupies a planting space today, not necessarily the tree that was there when the hazard was reported. At least 18.8% of "Excellent"-condition hazard-matched trees were planted after their own hazard report — confirmed replacements. The rest can't be cleanly separated from that same effect. See Results for the full explanation and the recommendation that sidesteps needing to resolve it.</p>
+      <h3>5. <code>physicalid</code> is a street segment, not a single tree — the species/condition breakdown doesn't survive this</h3>
+      <p>Full explanation and numbers are in Results above (the Ocean Parkway example, the 2.2× baseline skew with zero hazard data involved). Say this one plainly and early: an earlier version of this analysis treated a tree's species/condition/size as if it identified the culprit tree; it actually identifies whichever of ~8 trees per segment happened to have the most recently updated record, which is not a neutral pick. The AUC-level result (the model beats the benchmarks) still holds; the attribute-level story doesn't.</p>
 
       <h3>6. The modeling population is enriched with cases, not a clean random sample</h3>
-      <p>The 107,730-tree training population is a 10% systematic sample of the inventory <em>plus every hazard-matched tree added back in</em>, so hazard prevalence in the modeling data (13.23%) is far higher than the true city-wide rate (roughly 1–2%). This leaves the odds ratios valid (case-control sampling doesn't bias them), but it means the predicted probabilities and the "top 13%" cutoff do <strong>not</strong> directly generalize to ranking all 1.1M real trees without re-calibration — flag this if asked how the field rule would actually be deployed at full scale.</p>
+      <p>The 107,730-tree training population is a 10% systematic sample of the inventory <em>plus every hazard-matched tree added back in</em>, so the training label's prevalence (6.56% <code>hazard_train</code>) is higher than the true city-wide rate (roughly 1–2%; a broader measure across the full 2023–26 window, <code>hazard_ever</code>, runs even higher at 13.23%, which is a different, wider-window number — don't conflate the two if asked). This leaves odds ratios valid in principle (case-control sampling doesn't bias them), but the predicted probabilities and the "top 13%" cutoff do <strong>not</strong> directly generalize to ranking all 1.1M real trees without re-calibration.</p>
 
       <h3>Anticipated Q&amp;A, answered in advance</h3>
       <ul>
         <li><em>"Why not the 2015 Street Tree Census — it's more complete?"</em> — It's a one-time historical snapshot, last touched 2017; the live Tree Points table is the actual current inventory.</li>
-        <li><em>"Isn't 'bigger, unhealthier trees are riskier' obvious?"</em> — It's not even true in this data: hazard rate by diameter is U-shaped (high for the smallest trees, dips in the middle, rises again for the largest), and condition doesn't rank the way you'd expect either — "Excellent" carries the highest odds ratio of any condition, not the lowest.</li>
-        <li><em>"So are young trees actually more dangerous, or not?"</em> — Honestly unresolved. At least 18.8% of the "Excellent" hazard trees are confirmed replacements planted after their own hazard event; the rest can't be cleanly separated from that same effect with this data. Say this plainly rather than picking a side the data doesn't support.</li>
+        <li><em>"Isn't 'bigger, unhealthier trees are riskier' obvious?"</em> — It's not even true in this data: hazard rate by diameter is U-shaped, and condition doesn't rank the way you'd expect — but see caveat 5 before leaning on this, since the condition/diameter breakdown turned out to be substantially a join artifact.</li>
+        <li><em>"How do you know the repeat-hazard finding isn't the same join problem?"</em> — Because it doesn't need to identify a specific tree. It compares segments with any pre-2025 report against segments with none, using the raw complaint records directly — the arbitrary tree-pick never enters that calculation.</li>
         <li><em>"What happens to the 64% you couldn't match?"</em> — Answered directly in caveat 1: named as scope (curbside trees), not silence.</li>
       </ul>
     </section>
@@ -981,6 +983,114 @@ saveRDS(list(full_model = full_model, benchmark_model = benchmark_model,
         "model_results.rds")
 write.csv(model_data, "final_modeling_table.csv", row.names = FALSE)
 cat("\nDone. Saved model_results.rds and final_modeling_table.csv\n")
+</code></pre>
+        </div>
+      </details>
+
+      <details class="rcode">
+        <summary>Show the follow-up script (join diagnosis + the repeat-hazard test)</summary>
+        <div class="code-block">
+          <span class="fname">02_repeat_hazard_and_join_diagnosis.R — the actual file, run after the fact-check found the physicalid problem</span>
+          <pre><code>## Tree Hazard Triage -- follow-up analysis after round-2 fact-check
+## Two things: (1) diagnose the physicalid join-key problem, (2) test the
+## repeat-hazard-at-a-location finding properly (the original hazard_test
+## column is structurally zero for every already-flagged tree, so it can't
+## be used to test this -- see write-up).
+## Run: Rscript 02_repeat_hazard_and_join_diagnosis.R
+## Requires 01_pull_and_model.R to have been run first (reads its cached CSVs + model_results.rds).
+
+options(scipen = 999)
+suppressMessages({
+  library(dplyr)
+})
+
+## --- PART 1: diagnose the physicalid join key ------------------------------
+
+planting_spaces &lt;- read.csv("raw_planting_spaces.csv", stringsAsFactors = FALSE)
+ps &lt;- planting_spaces %&gt;% filter(!is.na(physicalid)) %&gt;% mutate(physicalid_int = as.integer(physicalid))
+
+counts &lt;- ps %&gt;% count(physicalid_int, sort = TRUE) %&gt;% mutate(distinct_globalid = NA_integer_)
+cat("=== Rows and distinct tree records per physicalid ===\n")
+cat("Median rows per physicalid:", median(counts$n), "\n")
+cat("Median distinct globalid per physicalid:",
+    median((ps %&gt;% count(physicalid_int, globalid) %&gt;% count(physicalid_int))$n), "\n")
+
+top5 &lt;- head(counts$physicalid_int, 5)
+cat("\nTop 5 physicalid by row count -- distinct globalid each:\n")
+for (pid in top5) {
+  sub &lt;- ps %&gt;% filter(physicalid_int == pid)
+  cat(sprintf("  physicalid %d: %d rows, %d distinct globalid\n", pid, nrow(sub), n_distinct(sub$globalid)))
+}
+
+## --- PART 2: does the "pick most-recently-updated" tie-break itself select
+## for young trees, independent of any hazard data? Test on the unbiased
+## 10%% systematic tree sample (raw_tree_sample.csv), which was pulled with
+## NO reference to hazard status at all.
+
+tree_sample &lt;- read.csv("raw_tree_sample.csv", stringsAsFactors = FALSE)
+# tree_sample only has plantingspaceglobalid, not physicalid directly -- join through
+# planting_spaces to find, for each sampled tree, whether ITS OWN globalid is the
+# one that ps_dedup would have picked for its physicalid group.
+ps_min &lt;- planting_spaces %&gt;%
+  filter(!is.na(physicalid)) %&gt;%
+  mutate(physicalid_int = as.integer(physicalid), updateddate = as.Date(updateddate)) %&gt;%
+  select(physicalid_int, globalid, updateddate)
+
+ps_dedup_ids &lt;- ps_min %&gt;%
+  group_by(physicalid_int) %&gt;%
+  slice_max(updateddate, n = 1, with_ties = FALSE) %&gt;%
+  ungroup() %&gt;%
+  pull(globalid)
+
+sampled_with_flag &lt;- tree_sample %&gt;%
+  filter(!is.na(tpcondition), !tpcondition %in% c("Dead", "Unknown")) %&gt;%
+  mutate(would_be_selected = plantingspaceglobalid %in% ps_dedup_ids)
+
+cat("\n=== Does the tie-break itself select young/Excellent trees, with ZERO hazard data involved? ===\n")
+cat("Sampled trees that WOULD be picked by the dedup tie-break for their block:", sum(sampled_with_flag$would_be_selected), "\n")
+cat("Sampled trees that would NOT be picked (a different tree on their block wins):", sum(!sampled_with_flag$would_be_selected), "\n")
+print(sampled_with_flag %&gt;% group_by(would_be_selected) %&gt;%
+        summarise(n = n(), pct_excellent = round(100 * mean(tpcondition == "Excellent"), 1),
+                  median_dbh = median(as.numeric(dbh), na.rm = TRUE)))
+
+## --- PART 3: the repeat-hazard test, done properly --------------------------
+## The original hazard_test column is FALSE by construction for every tree
+## with hazard_train==1 (a tree's first_hazard_date can't be both before and
+## after the 2025 cutoff). To test "does a flagged location repeat", rebuild
+## the outcome directly from the individual hazard reports, not from the
+## single first_hazard_date summary.
+
+hazard_sr &lt;- read.csv("raw_hazard_sr.csv", stringsAsFactors = FALSE)
+hazard_sr$createddate &lt;- as.Date(hazard_sr$createddate)
+ps_dedup &lt;- ps_min %&gt;% group_by(physicalid_int) %&gt;%
+  slice_max(updateddate, n = 1, with_ties = FALSE) %&gt;% ungroup()
+hazard_join1 &lt;- hazard_sr %&gt;% mutate(physicalid_int = as.integer(physicalid)) %&gt;%
+  inner_join(ps_dedup, by = "physicalid_int")
+
+cutoff &lt;- as.Date("2025-01-01")
+per_tree_reports &lt;- hazard_join1 %&gt;% group_by(globalid) %&gt;%
+  summarise(has_2025on_report = any(createddate &gt;= cutoff), .groups = "drop")
+
+res &lt;- readRDS("model_results.rds")
+td &lt;- res$train_data
+td2 &lt;- td %&gt;% left_join(per_tree_reports, by = c("plantingspaceglobalid" = "globalid")) %&gt;%
+  mutate(has_2025on_report = ifelse(is.na(has_2025on_report), FALSE, has_2025on_report))
+
+cat("\n=== Repeat-hazard test: does a pre-2025 flagged location repeat in 2025-26? ===\n")
+summary_tbl &lt;- td2 %&gt;% group_by(hazard_train) %&gt;%
+  summarise(n = n(), rate_2025on_report = round(100 * mean(has_2025on_report), 2))
+print(summary_tbl)
+lift &lt;- summary_tbl$rate_2025on_report[summary_tbl$hazard_train == 1] /
+        summary_tbl$rate_2025on_report[summary_tbl$hazard_train == 0]
+cat(sprintf("Lift: %.2fx\n", lift))
+
+## exact counts for the writeup
+n1 &lt;- summary_tbl$n[summary_tbl$hazard_train == 1]
+n0 &lt;- summary_tbl$n[summary_tbl$hazard_train == 0]
+cat(sprintf("\nFlagged (hazard_train=1): n=%d, %.1f%% repeat\n", n1, summary_tbl$rate_2025on_report[summary_tbl$hazard_train==1]))
+cat(sprintf("Never-flagged (hazard_train=0): n=%d, %.1f%% get a first report 2025-26\n", n0, summary_tbl$rate_2025on_report[summary_tbl$hazard_train==0]))
+
+cat("\nDone.\n")
 </code></pre>
         </div>
       </details>
